@@ -383,7 +383,7 @@ spret cast_passwall(const coord_def& c, int pow, bool fail)
         return spret::abort;
 
     coord_def delta = c - you.pos();
-    passwall_path p(you, delta, spell_range(SPELL_PASSWALL, pow));
+    passwall_path p(you, delta, spell_range(SPELL_PASSWALL, &you));
     string fail_msg;
     bool valid = p.is_valid(&fail_msg);
     if (!p.spell_succeeds())
@@ -585,8 +585,13 @@ void trigger_binding_sigil(actor& actor)
 {
     if (actor.is_binding_sigil_immune())
     {
-        mprf("%s cannot be bound by the sigil due to %s high momentum!",
-             actor.name(DESC_THE).c_str(), actor.pronoun(PRONOUN_POSSESSIVE).c_str());
+        if (actor.is_player())
+            mpr("You slip past the binding sigil.");
+        else
+        {
+            mprf("%s cannot be bound by the sigil due to %s high momentum!",
+                actor.name(DESC_THE).c_str(), actor.pronoun(PRONOUN_POSSESSIVE).c_str());
+        }
         return;
     }
 
@@ -736,11 +741,17 @@ void handle_spike_launcher(int delay)
 
     int& timer = you.props[SPIKE_LAUNCHER_TIMER].get_int();
     timer -= delay;
-
+    bool no_targets = false;
     // Now, fire the launcher, if anything is in range.
     while (timer < 0)
     {
-        for (fair_adjacent_iterator ai(pos); ai; ++ai)
+        timer += BASELINE_DELAY;
+        // Keep incrementing the timer when no targets were found, as it updates
+        // the SPIKE_LAUNCHER_TIMER prop
+        if (no_targets)
+            continue;
+        vector<monster*> targets;
+        for (adjacent_iterator ai(pos, false); ai; ++ai)
         {
             if (monster* targ = monster_at(*ai))
             {
@@ -749,13 +760,16 @@ void handle_spike_launcher(int delay)
                 {
                     continue;
                 }
-
-                _fire_spike_launcher(targ, pos);
-                break;
+                targets.push_back(targ);
             }
         }
+        if (targets.size() == 0)
+        {
+            no_targets = true;
+            continue;
+        }
 
-        timer += BASELINE_DELAY;
+        _fire_spike_launcher(targets.at(random2(targets.size())), pos);
     }
 }
 

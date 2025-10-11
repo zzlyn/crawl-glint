@@ -13,8 +13,10 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "act-iter.h"
 #include "areas.h" // silenced
 #include "art-enum.h"
+#include "chardump.h"
 #include "coord.h"
 #include "coordit.h"
 #include "delay.h"
@@ -31,8 +33,10 @@
 #include "melee-attack.h"
 #include "message.h"
 #include "misc.h"
+#include "mon-abil.h"
 #include "mon-behv.h"
 #include "mon-cast.h"
+#include "mon-explode.h" // monster_explodes
 #include "mon-place.h"
 #include "mon-util.h"
 #include "options.h"
@@ -384,6 +388,27 @@ static bool _autofire_at(actor *defender)
     return true;
 }
 
+static void _do_medusa_stinger()
+{
+    vector<monster*> targs;
+    for (monster_near_iterator mi(&you, LOS_NO_TRANS); mi; ++mi)
+    {
+        if (mi->temp_attitude() == ATT_HOSTILE && !mi->is_firewood()
+            && grid_distance(you.pos(), mi->pos()) <= 2)
+        {
+            targs.push_back(*mi);
+        }
+    }
+
+    shuffle_array(targs);
+    int num = min(div_rand_round(get_form()->get_effect_size(), 10), (int)targs.size());
+    for (int i = 0; i < num; ++i)
+    {
+        melee_attack sting(&you, targs[i]);
+        sting.player_do_aux_attack(UNAT_MEDUSA_STINGER);
+    }
+}
+
 /**
  * Handle melee combat between attacker and defender.
  *
@@ -407,8 +432,21 @@ bool fight_melee(actor *attacker, actor *defender, bool *did_hit, bool simu)
     ASSERT(defender); // XXX: change to actor &defender
 
     // A dead defender would result in us returning true without actually
-    // taking an action.
-    ASSERT(defender->alive());
+    // taking an action. But allow just passing our turn if we try to attack a
+    // monster mid-revival (since they're still actually supposed to be there).
+    if (!defender->alive())
+    {
+        if (defender->is_monster()
+            && (defender->as_monster()->flags & MF_PENDING_REVIVAL))
+        {
+            return true;
+        }
+        else
+        {
+            die("%s trying to attack a dead %s", attacker->name(DESC_THE).c_str(),
+                                                 defender->name(DESC_THE).c_str());
+        }
+    }
 
     if (defender->is_player())
     {
@@ -440,7 +478,7 @@ bool fight_melee(actor *attacker, actor *defender, bool *did_hit, bool simu)
             if (Options.auto_switch && _autoswitch_to_melee())
                 return true; // Is this right? We did take time, but we didn't melee
             if (!simu && _autofire_at(defender))
-                return true;
+                return you.turn_is_over;
         }
 
         melee_attack attk(&you, defender);
@@ -473,18 +511,9 @@ bool fight_melee(actor *attacker, actor *defender, bool *did_hit, bool simu)
         if (did_hit)
             *did_hit = attk.did_hit;
 
-        if (!simu && will_have_passive(passive_t::shadow_attacks))
-            dithmenos_shadow_melee(defender);
+        do_player_post_attack(defender, !attk.did_attack_hostiles(), simu);
 
-        // Executioner state doesn't wear off so long as you keep attacking.
-        if (you.duration[DUR_EXECUTION])
-            you.duration[DUR_EXECUTION] += you.time_taken;
-
-        if (you.duration[DUR_DETONATION_CATALYST])
-            you.duration[DUR_DETONATION_CATALYST] += you.time_taken;
-
-        if (you.duration[DUR_PARAGON_ACTIVE])
-            paragon_attack_trigger();
+        count_action(CACT_ATTACK, ATTACK_NORMAL);
 
         return true;
     }
@@ -505,7 +534,7 @@ bool fight_melee(actor *attacker, actor *defender, bool *did_hit, bool simu)
     }
 
     const int nrounds = attacker->as_monster()->has_hydra_multi_attack()
-        ? attacker->heads() + MAX_NUM_ATTACKS - 1
+        ? attacker->heads() + (attacker->type == MONS_DRAUGR)
         : MAX_NUM_ATTACKS;
     coord_def pos = defender->pos();
 
@@ -531,7 +560,7 @@ bool fight_melee(actor *attacker, actor *defender, bool *did_hit, bool simu)
                && !attacker->as_monster()->has_ench(ENCH_FRENZIED))
         {
             if (attacker == defender
-               || !attacker->as_monster()->has_multitargeting())
+               || !attacker->as_monster()->has_hydra_multi_attack())
             {
                 break;
             }
@@ -589,6 +618,45 @@ bool fight_melee(actor *attacker, actor *defender, bool *did_hit, bool simu)
         paragon_charge_up(*attacker->as_monster());
 
     return true;
+}
+
+/**
+ * Handle effects that should happen after each time the player performs a
+ * single 'attack action' (which might be either a normal attack, or a martial
+ * attack caused by movement).
+ *
+ * @param defender       The target the player attacked. (Which might be dead,
+ *                       or even null in the case of WJC martial attacks!)
+ * @param only_firewood  Whether the defender (and all potential cleave targets)
+ *                       were firewood while alive.
+ * @param simu           Whether this is an fsim simulation.
+ */
+void do_player_post_attack(actor *defender, bool only_firewood, bool simu)
+{
+    if (!simu && will_have_passive(passive_t::shadow_attacks))
+        dithmenos_shadow_melee(defender);
+
+    if (you.form == transformation::medusa)
+        _do_medusa_stinger();
+
+    if (only_firewood)
+        return;
+
+    // Various status will not expire so long as the player keeps attacking.
+    if (you.duration[DUR_EXECUTION])
+        you.duration[DUR_EXECUTION] += you.time_taken;
+    if (you.duration[DUR_WEREFURY])
+        you.duration[DUR_WEREFURY] += you.time_taken;
+    if (you.duration[DUR_DETONATION_CATALYST])
+        you.duration[DUR_DETONATION_CATALYST] += you.time_taken;
+
+    if (you.duration[DUR_PARAGON_ACTIVE])
+        paragon_attack_trigger();
+
+    if (you.form == transformation::sun_scarab)
+        solar_ember_blast();
+
+    update_parrying_status();
 }
 
 /**
@@ -687,7 +755,7 @@ int stab_bonus_denom(stab_type stab)
     }
 }
 
-static bool is_boolean_resist(beam_type flavour)
+static bool _is_boolean_resist(beam_type flavour)
 {
     switch (flavour)
     {
@@ -697,7 +765,6 @@ static bool is_boolean_resist(beam_type flavour)
     case BEAM_WATER:  // water asphyxiation damage,
                       // bypassed by being water inhabitant.
     case BEAM_POISON:
-    case BEAM_POISON_ARROW:
         return true;
     default:
         return false;
@@ -706,7 +773,7 @@ static bool is_boolean_resist(beam_type flavour)
 
 // Gets the percentage of the total damage of this damage flavour that can
 // be resisted.
-static inline int get_resistible_fraction(beam_type flavour)
+static inline int _get_resistible_fraction(beam_type flavour)
 {
     switch (flavour)
     {
@@ -723,36 +790,74 @@ static inline int get_resistible_fraction(beam_type flavour)
     }
 }
 
+// Converts a beam flavour into the 'basic' flavour that checks that resist.
+beam_type get_beam_resist_type(beam_type flavour)
+{
+    switch (flavour)
+    {
+        // Note that Steam is *not* here, even if it also effectively checks
+        // rF, since rSteam on its own is a thing actors can have.
+        case BEAM_FIRE:
+        case BEAM_LAVA:
+            return BEAM_FIRE;
+
+        case BEAM_COLD:
+        case BEAM_ICE:
+            return BEAM_COLD;
+
+        case BEAM_ELECTRICITY:
+        case BEAM_THUNDER:
+        case BEAM_STUN_BOLT:
+            return BEAM_ELECTRICITY;
+
+        case BEAM_NEG:
+        case BEAM_PAIN:
+        case BEAM_MALIGN_OFFERING:
+        case BEAM_VAMPIRIC_DRAINING:
+            return BEAM_NEG;
+
+        case BEAM_POISON:
+        case BEAM_POISON_ARROW:
+        case BEAM_MERCURY:
+            return BEAM_POISON;
+
+        // Entirely for Qazlal's elemental adaptation passive, counting for
+        // 'physical damage'.
+        case BEAM_MISSILE:
+        case BEAM_MMISSILE:
+        case BEAM_FRAG:
+        case BEAM_CRYSTALLISING:
+        case BEAM_SEISMIC:
+        case BEAM_BOLAS:
+        case BEAM_AIR:
+            return BEAM_MISSILE;
+
+        default:
+            return flavour;
+    }
+}
+
 static int _beam_to_resist(const actor* defender, beam_type flavour)
 {
     switch (flavour)
     {
         case BEAM_FIRE:
-        case BEAM_LAVA:
             return defender->res_fire();
         case BEAM_DAMNATION:
             return defender->res_damnation();
         case BEAM_STEAM:
             return defender->res_steam();
         case BEAM_COLD:
-        case BEAM_ICE:
             return defender->res_cold();
         case BEAM_WATER:
             return defender->res_water_drowning();
         case BEAM_ELECTRICITY:
-        case BEAM_THUNDER:
-        case BEAM_STUN_BOLT:
             return defender->res_elec();
         case BEAM_NEG:
-        case BEAM_PAIN:
-        case BEAM_MALIGN_OFFERING:
-        case BEAM_VAMPIRIC_DRAINING:
             return defender->res_negative_energy();
         case BEAM_ACID:
             return defender->res_corr();
         case BEAM_POISON:
-        case BEAM_POISON_ARROW:
-        case BEAM_MERCURY:
             return defender->res_poison();
         case BEAM_HOLY:
             return defender->res_holy_energy();
@@ -782,13 +887,14 @@ static int _beam_to_resist(const actor* defender, beam_type flavour)
  */
 int resist_adjust_damage(const actor* defender, beam_type flavour, int rawdamage)
 {
-    const int res = _beam_to_resist(defender, flavour);
+    const beam_type base_flavour = get_beam_resist_type(flavour);
+    const int res = _beam_to_resist(defender, base_flavour);
     if (!res)
         return rawdamage;
 
     const bool is_mon = defender->is_monster();
 
-    const int resistible_fraction = get_resistible_fraction(flavour);
+    const int resistible_fraction = _get_resistible_fraction(flavour);
 
     int resistible = rawdamage * resistible_fraction / 100;
     const int irresistible = rawdamage - resistible;
@@ -796,34 +902,23 @@ int resist_adjust_damage(const actor* defender, beam_type flavour, int rawdamage
     if (res > 0)
     {
         const bool immune_at_3_res = is_mon
-                                     || flavour == BEAM_NEG
-                                     || flavour == BEAM_PAIN
-                                     || flavour == BEAM_MALIGN_OFFERING
-                                     || flavour == BEAM_VAMPIRIC_DRAINING
+                                     || base_flavour == BEAM_NEG
+                                     || base_flavour == BEAM_POISON
                                      || flavour == BEAM_HOLY
-                                     || flavour == BEAM_FOUL_FLAME
-                                     || flavour == BEAM_POISON
-                                     // just the resistible part
-                                     || flavour == BEAM_MERCURY
-                                     || flavour == BEAM_POISON_ARROW;
+                                     || flavour == BEAM_FOUL_FLAME;
 
         if (immune_at_3_res && res >= 3 || res > 3)
             resistible = 0;
         else
         {
             // Is this a resist that claims to be boolean for damage purposes?
-            const int bonus_res = (is_boolean_resist(flavour) ? 1 : 0);
+            const int bonus_res = (_is_boolean_resist(base_flavour) ? 1 : 0);
 
             // Monster resistances are stronger than player versions.
             if (is_mon)
                 resistible /= 1 + bonus_res + res * res;
-            else if (flavour == BEAM_NEG
-                     || flavour == BEAM_PAIN
-                     || flavour == BEAM_MALIGN_OFFERING
-                     || flavour == BEAM_VAMPIRIC_DRAINING)
-            {
+            else if (base_flavour == BEAM_NEG)
                 resistible /= res * 2;
-            }
             else
                 resistible /= (3 * res + 1) / 2 + bonus_res;
         }
@@ -1074,6 +1169,17 @@ bool dont_harm(const actor &attacker, const actor &defender)
     return false;
 }
 
+bool _monster_has_reachcleave(const actor &attacker)
+{
+    if (attacker.is_monster()
+        && attacker.as_monster()->has_attack_flavour(AF_REACH_CLEAVE_UGLY))
+    {
+        return true;
+    }
+
+    return false;
+}
+
 /**
  * Force cleave attacks. Used for melee actions that don't have targets, e.g.
  * attacking empty space (otherwise, cleaving is handled in melee_attack).
@@ -1085,6 +1191,8 @@ bool force_player_cleave(coord_def target)
 {
     list<actor*> cleave_targets;
     get_cleave_targets(you, target, cleave_targets);
+    if (item_def* offhand_weapon = you.offhand_weapon())
+        get_cleave_targets(you, target, cleave_targets, -1, false, offhand_weapon);
 
     if (!cleave_targets.empty())
     {
@@ -1094,8 +1202,10 @@ bool force_player_cleave(coord_def target)
         if (stop_attack_prompt(hitfunc, "attack"))
             return true;
 
-        if (!you.fumbles_attack())
-            attack_multiple_targets(you, cleave_targets);
+        melee_attack atk(&you, nullptr);
+        atk.launch_attack_set();
+        count_action(CACT_ATTACK, ATTACK_NORMAL);
+        do_player_post_attack(nullptr, !atk.did_attack_hostiles(), false);
         return true;
     }
 
@@ -1110,7 +1220,8 @@ bool attack_cleaves(const actor &attacker, const item_def *weap)
         return true;
     }
     else if (attacker.is_monster()
-             && attacker.as_monster()->has_ench(ENCH_INSTANT_CLEAVE))
+             && (attacker.as_monster()->has_ench(ENCH_INSTANT_CLEAVE)
+             || _monster_has_reachcleave(attacker)))
     {
         return true;
     }
@@ -1143,9 +1254,14 @@ bool weapon_multihits(const item_def *weap)
  * defender itself.
  *
  * @param attacker[in]   The attacking creature.
- * @param def[in]        The location of the targeted defender.
+ * @param def[in]        The location of the targeted defender, or (0,0) if
+ *                       there isn't one.
  * @param targets[out]   A list to be populated with targets.
  * @param which_attack   The attack_number (default -1, which uses the default weapon).
+ * @param force_cleaving Force the current attack to count as if it cleaves,
+ *                       even if it otherwise would not (ie: for Inugami instant
+ *                       cleave).
+ * @param weapon         The weapon being used to make this attack.
  */
 void get_cleave_targets(const actor &attacker, const coord_def& def,
                         list<actor*> &targets, int which_attack,
@@ -1156,7 +1272,7 @@ void get_cleave_targets(const actor &attacker, const coord_def& def,
     if (!attacker.alive())
         return;
 
-    if (actor_at(def))
+    if (!def.origin() && actor_at(def))
         targets.push_back(actor_at(def));
 
     const item_def* weap = weapon ? weapon : attacker.weapon(which_attack);
@@ -1164,9 +1280,10 @@ void get_cleave_targets(const actor &attacker, const coord_def& def,
         return;
 
     const coord_def atk = attacker.pos();
-    //If someone adds a funky reach which isn't just a number
-    //They will need to special case it here.
-    const int cleave_radius = weap ? weapon_reach(*weap) : 1;
+    // Players in aqua form specifically do not get enormous cleaving, but
+    // monsters with natural reach cleave for their while reach.
+    const int cleave_radius = attacker.is_monster() ? attacker.reach_range()
+                                : weap ? weapon_reach(*weap) : 1;
 
     for (distance_iterator di(atk, true, true, cleave_radius); di; ++di)
     {
@@ -1174,69 +1291,10 @@ void get_cleave_targets(const actor &attacker, const coord_def& def,
         actor *target = actor_at(*di);
         if (!target || dont_harm(attacker, *target))
             continue;
-        if (di.radius() == 2 && !can_reach_attack_between(atk, *di, REACH_TWO))
-            continue;
-        else if (di.radius() == 3 && !can_reach_attack_between(atk, *di, REACH_THREE))
+        if (di.radius() > 1 && !can_reach_attack_between(atk, *di, cleave_radius))
             continue;
         targets.push_back(target);
     }
-}
-
-/**
- * Attack a provided list of cleave or quick-blade targets.
- *
- * @param attacker                  The attacking creature.
- * @param targets                   The targets to cleave.
- * @param attack_number             For monsters, which of their 4 possible attacks this
- *                                  corresponds to. For players, usually 0, but can be 1
- *                                  for the second of a Coglin's two weapons per round
- * @param effective_attack_number   Like attack_number, if invalid attacks were skipped
- *                                  (ie: fake attacks or ones outside of their max range.)
- * @param wu_jian_attack            The type of martial attack being performed (if any).
- * @param is_projected              Whether the attack is projected (ie: Manifold Assault)
- * @param is_cleaving               Whether this is a cleaving attack.
- * @param weapon                    The weapon this attack is being performed with (if any).
- *
- * @return  The total amount of damage inflicted directly by all attacks caused by this function.
- */
-int attack_multiple_targets(actor &attacker, list<actor*> &targets,
-                             int attack_number, int effective_attack_number,
-                             wu_jian_attack_type wu_jian_attack,
-                             bool is_projected, bool is_cleaving,
-                             item_def *weapon)
-{
-    if (!attacker.alive())
-        return 0;
-
-    int total_damage = 0;
-    const item_def* weap = weapon ? weapon : attacker.weapon(attack_number);
-    const bool reaching = weap && weapon_reach(*weap) > REACH_NONE;
-    while (attacker.alive() && !targets.empty())
-    {
-        actor* def = targets.front();
-
-        if (def && def->alive() && !dont_harm(attacker, *def)
-            && (is_projected
-                || adjacent(attacker.pos(), def->pos())
-                || reaching))
-        {
-            melee_attack attck(&attacker, def, attack_number,
-                               ++effective_attack_number);
-            if (weapon && attacker.is_player())
-                attck.set_weapon(weapon, true);
-
-            attck.wu_jian_attack = wu_jian_attack;
-            attck.is_projected = is_projected;
-            attck.cleaving = is_cleaving;
-            attck.is_multihit = !is_cleaving; // heh heh heh
-            attck.attack();
-
-            total_damage += attck.total_damage_done;
-        }
-        targets.pop_front();
-    }
-
-    return total_damage;
 }
 
 /**
@@ -1340,15 +1398,23 @@ bool bad_attack(const monster *mon, string& adj, string& suffix,
             return false;
 
         if (god_hates_attacking_friend(you.religion, *mon))
+            would_cause_penance = true;
+
+        // Mostly don't warn for peripheral summons, unless attacking them would
+        // cause problems: explosions, penance, etc.
+        if (mon->was_created_by(you) && mon->is_peripheral()
+            && !monster_explodes(*mon) && !would_cause_penance)
+        {
+            return false;
+        }
+
+        if (would_cause_penance)
         {
             adj = "your ally ";
 
             monster_info mi(mon, MILEV_NAME);
             if (!mi.is(MB_NAME_UNQUALIFIED))
                 adj += "the ";
-
-            would_cause_penance = true;
-
         }
         else
         {
@@ -1367,6 +1433,11 @@ bool bad_attack(const monster *mon, string& adj, string& suffix,
             || you_worship(GOD_BEOGH) && mons_genus(mon->type) == MONS_ORC)
         && !mon->has_ench(ENCH_FRENZIED))
     {
+        // If we cannot hurt a neutral anyway, don't bother warning as if we
+        // could
+        if (never_harm_monster(&you, mon))
+            return false;
+
         adj += "neutral ";
         if (you_worship(GOD_SHINING_ONE) || you_worship(GOD_ELYVILON)
             || you_worship(GOD_BEOGH))
@@ -1376,6 +1447,11 @@ bool bad_attack(const monster *mon, string& adj, string& suffix,
     }
     else if (mon->wont_attack())
     {
+        // If we cannot hurt a non-hostile anyway, don't bother warning as if we
+        // could
+        if (never_harm_monster(&you, mon))
+            return false;
+
         adj += "non-hostile ";
         if (you_worship(GOD_SHINING_ONE) || you_worship(GOD_ELYVILON))
             would_cause_penance = true;
@@ -1524,14 +1600,14 @@ string stop_summoning_reason(resists_t resists, monclass_flags_t flags)
     if (get_resist(resists, MR_RES_POISON) <= 0
         && you.duration[DUR_TOXIC_RADIANCE])
     {
-        return "toxic aura";
+        return "emitting a toxic aura";
     }
     if (you.duration[DUR_NOXIOUS_BOG] && !(flags & M_FLIES))
-        return "noxious bog";
+        return "spewing a noxious bog";
     if (you.duration[DUR_VORTEX])
-        return "polar vortex";
+        return "in the middle of a polar vortex";
     if (you.duration[DUR_FUSILLADE])
-        return "fulsome fusillade";
+        return "raining down reagents";
     return "";
 }
 
@@ -1615,8 +1691,8 @@ bool stop_summoning_prompt(resists_t resists, monclass_flags_t flags,
     if (noun.empty())
         return false;
 
-    string prompt = make_stringf("Really %s while emitting %s?",
-                                 verb.c_str(), article_a(noun).c_str());
+    string prompt = make_stringf("Really %s while %s?",
+                                 verb.c_str(), noun.c_str());
 
     if (yesno(prompt.c_str(), false, 'n'))
         return false;
@@ -1625,8 +1701,7 @@ bool stop_summoning_prompt(resists_t resists, monclass_flags_t flags,
     return true;
 }
 
-bool can_reach_attack_between(coord_def source, coord_def target,
-                              reach_type range)
+bool can_reach_attack_between(coord_def source, coord_def target, int range)
 {
     // The foe should be on the map (not stepped from time).
     if (!in_bounds(target))
@@ -1636,7 +1711,7 @@ bool can_reach_attack_between(coord_def source, coord_def target,
     const int grid_distance(delta.rdist());
 
     // Unrand only - Rift is smite-targeted and up to 3 range.
-    if (range == REACH_THREE)
+    if (range >= 3)
     {
         return cell_see_cell(source, target, LOS_NO_TRANS)
                && grid_distance > 1 && grid_distance <= range;
@@ -1734,6 +1809,17 @@ int brand_adjust_weapon_damage(int base_dam, int brand, bool random)
     if (random)
         return div_rand_round(base_dam * 9, 5);
     return base_dam * 9 / 5;
+}
+
+int resonance_damage_mod(int dam, bool random)
+{
+    if (you.wearing_ego(OBJ_ARMOUR, SPARM_RESONANCE))
+    {
+        dam = random ? div_rand_round(dam * (100 + you.skill(SK_FORGECRAFT, 2)), 100)
+                     : dam * (100 + you.skill(SK_FORGECRAFT, 2)) / 100;
+    }
+
+    return dam;
 }
 
 int unarmed_base_damage(bool random)

@@ -14,12 +14,13 @@
 
 ## Insects ('a')
 %back blood_green blood_green1 blood_green2 blood_green3 blood_green4
-giant_cockroach CORPSE_GIANT_COCKROACH
+clockroach CORPSE_CLOCKROACH
 radroach CORPSE_RADROACH
 
 ## Batty monsters ('b')
 %back blood_puddle_red blood_puddle_red1 blood_puddle_red2 blood_puddle_red3 blood_puddle_red4
 bat CORPSE_BAT
+raven CORPSE_RAVEN
 caustic_shrike CORPSE_CAUSTIC_SHRIKE
 shard_shrike CORPSE_SHARD_SHRIKE
 
@@ -31,7 +32,7 @@ warg CORPSE_WARG
 wolf CORPSE_WOLF
 hog CORPSE_HOG
 hell_hound CORPSE_HELL_HOUND
-doom_hound CORPSE_DOOM_HOUND
+oblivion_hound CORPSE_OBLIVION_HOUND
 raiju CORPSE_RAIJU
 hell_hog CORPSE_HELL_HOG
 black_bear CORPSE_BLACK_BEAR
@@ -75,6 +76,7 @@ crocodile CORPSE_CROCODILE
 alligator CORPSE_ALLIGATOR
 snapping_turtle CORPSE_SNAPPING_TURTLE
 alligator_snapping_turtle CORPSE_ALLIGATOR_SNAPPING_TURTLE
+mountainshell CORPSE_MOUNTAINSHELL
 fire_crab CORPSE_FIRE_CRAB
 ghost_crab CORPSE_GHOST_CRAB
 %sdir mon/abyss
@@ -198,6 +200,8 @@ eleionoma CORPSE_ELEIONOMA
 bog_body CORPSE_BOG_BODY
 necrophage CORPSE_NECROPHAGE
 ghoul CORPSE_GHOUL
+# maybe this should be customized, to avoid showing the psychic eyes?
+cognitogaunt CORPSE_COGNITOGAUNT
 
 ## Orcs ('o')
 %back blood_puddle_red blood_puddle_red1 blood_puddle_red2 blood_puddle_red3 blood_puddle_red4
@@ -273,6 +277,7 @@ mon/holy/pearl_dragon CORPSE_PEARL_DRAGON
 ## Hybrids ('H')
 %sdir mon/animals
 %back blood_puddle_red blood_puddle_red1 blood_puddle_red2 blood_puddle_red3 blood_puddle_red4
+hippogriff CORPSE_HIPPOGRIFF
 manticore CORPSE_MANTICORE
 %sdir mon/demihumanoids
 harpy CORPSE_HARPY
@@ -309,7 +314,9 @@ troll CORPSE_TROLL
 iron_troll CORPSE_IRON_TROLL
 deep_troll CORPSE_DEEP_TROLL
 
-## Cephalopods ('x')
+## Lesser miscelllaney ('x')
+%sdir mon/aberrations
+chonchon0 CORPSE_CHONCHON
 %sdir player
 base/octopode1 CORPSE_OCTOPODE
 %sdir mon/animals

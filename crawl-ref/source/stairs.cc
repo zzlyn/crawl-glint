@@ -493,7 +493,7 @@ static void _hell_effects()
 
     // 50% chance at max piety
     if (have_passive(passive_t::resist_hell_effects)
-        && x_chance_in_y(you.piety, MAX_PIETY * 2) || is_sanctuary(you.pos()))
+        && x_chance_in_y(you.piety(), MAX_PIETY * 2) || is_sanctuary(you.pos()))
     {
         simple_god_message(" power protects you from the chaos of Hell!", true);
         return;
@@ -512,7 +512,7 @@ static void _hell_effects()
     switch (random2(3))
     {
         case 0:
-            temp_mutate(RANDOM_BAD_MUTATION, "hell effect");
+            you.doom(20);
             break;
         case 1:
             drain_player(85, true, true);
@@ -1123,8 +1123,6 @@ void floor_transition(dungeon_feature_type how,
     // There's probably a reason for this. I don't know it.
     if (going_up)
         seen_monsters_react();
-    else
-        maybe_update_stashes();
 
     autotoggle_autopickup(false);
     request_autopickup();

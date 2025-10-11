@@ -58,6 +58,7 @@
 #ifdef USE_TILE
 #include "tilepick.h"
 #endif
+#include "transform.h"
 #include "traps.h"
 #include "view.h"
 #include "viewmap.h"
@@ -71,8 +72,7 @@
  */
 static void _place_tloc_cloud(const coord_def &origin)
 {
-    if (!cell_is_solid(origin))
-        place_cloud(CLOUD_TLOC_ENERGY, origin, 1 + random2(3), &you);
+    place_cloud(CLOUD_TLOC_ENERGY, origin, 1 + random2(3), &you);
 }
 
 spret cast_disjunction(int pow, bool fail)
@@ -152,8 +152,68 @@ void uncontrolled_blink(bool override_stasis, int max_distance)
     const coord_def origin = you.pos();
     move_player_to_grid(target, false);
     _place_tloc_cloud(origin);
+    stop_delay(true);
 
     crawl_state.potential_pursuers.clear();
+}
+
+spret spider_jump()
+{
+    if (cancel_harmful_move(false))
+        return spret::abort;
+
+    you.duration[DUR_AUTODODGE] = 1;
+
+    coord_def target;
+    // First try to find a random square not adjacent to the player,
+    // then one adjacent if that fails.
+    if (!random_near_space(&you, you.pos(), target, false, you.current_vision)
+        && !random_near_space(&you, you.pos(), target, true, you.current_vision))
+    {
+        mpr("You jump in place.");
+        return spret::success;
+    }
+
+    // It may be a little counterintuitive, but the chance of a monster losing
+    // track of the player is proportional to how many monsters are looking at
+    // them in the first place. This is because the chance of them being spotted
+    // afterward is *also* effectively proportional to how many monsters are
+    // looking for them, due to how stealth works. So this is an attempt to give
+    // an 'okay' level of misdirection against groups without being a sure-fire
+    // escape against individual monsters.
+    int onlookers = 0;
+    for (monster_near_iterator mi(you.pos(), LOS_NO_TRANS); mi; ++mi)
+    {
+        if (mi->foe == MHITYOU && !mi->is_firewood() && !mi->wont_attack())
+            ++onlookers;
+    }
+
+    // Make some monsters lose track of the player.
+    for (monster_near_iterator mi(you.pos(), LOS_NO_TRANS); mi; ++mi)
+    {
+        if (mi->foe == MHITYOU && !mi->is_firewood() && !mi->wont_attack()
+            && x_chance_in_y(onlookers + 3, 9))
+        {
+            mi->foe = MHITNOT;
+            mi->foe_memory = 0;
+            mi->target = mi->pos();
+            mi->behaviour = BEH_WANDER;
+        }
+    }
+
+    you.stop_being_constricted(false, "jump");
+
+    mpr("You jump through the air!");
+    const coord_def origin = you.pos();
+    move_player_to_grid(target, false);
+    place_cloud(CLOUD_DUST, origin, 2 + random2(3), &you);
+
+    crawl_state.potential_pursuers.clear();
+
+    you.increase_duration(DUR_BLINK_COOLDOWN, random_range(2, 5));
+    place_cloud(CLOUD_DUST, origin, 2 + random2(3), &you);
+
+    return spret::success;
 }
 
 /**
@@ -363,17 +423,17 @@ public:
 };
 
 /**
- * Randomly choose one of the spaces near the given target for the player's hop
- * to land on.
+ * Randomly choose one of the spaces near the given target for the player's
+ * blink to land on.
  *
  * @param target    The tile the player wants to land on.
  * @return          A nearby, unoccupied, inhabitable tile.
  */
-static coord_def _fuzz_hop_destination(coord_def target)
+static coord_def _fuzz_blink_destination(coord_def target)
 {
     coord_def chosen;
     int seen = 0;
-    targeter_hop tgt(frog_hop_range(), true);
+    targeter_hop tgt(LOS_RADIUS, true);
     tgt.set_aim(target); // XX could reuse tgt from the calling function?
     for (auto ti = tgt.affected_iterator(AFF_MAYBE); ti; ++ti)
         if (one_chance_in(++seen))
@@ -384,7 +444,7 @@ static coord_def _fuzz_hop_destination(coord_def target)
 
 int frog_hop_range()
 {
-    return 2 + you.get_mutation_level(MUT_HOP) * 2; // 4-6
+    return 2 + you.get_mutation_level(MUT_FROG_LEGS) * 2; // 4-6
 }
 
 /**
@@ -414,7 +474,7 @@ spret frog_hop(bool fail, dist *target)
         }
         break;
     }
-    target->target = _fuzz_hop_destination(target->target);
+    target->target = _fuzz_blink_destination(target->target);
 
     fail_check();
 
@@ -428,8 +488,7 @@ spret frog_hop(bool fail, dist *target)
         return spret::success; // of a sort
     }
 
-    if (!cell_is_solid(you.pos())) // should be safe.....
-        place_cloud(CLOUD_DUST, you.pos(), 2 + random2(3), &you);
+    place_cloud(CLOUD_DUST, you.pos(), 2 + random2(3), &you);
     move_player_to_grid(target->target, false);
     crawl_state.cancel_cmd_again();
     crawl_state.cancel_cmd_repeat();
@@ -500,7 +559,7 @@ bool valid_electric_charge_target(const actor& agent, coord_def target, string* 
         return false;
     }
     else if (grid_distance(agent.pos(), target)
-             > spell_range(SPELL_ELECTRIC_CHARGE, 50))
+             > spell_range(SPELL_ELECTRIC_CHARGE, &agent))
     {
         if (fail_reason)
             *fail_reason = "That's out of range!";
@@ -759,16 +818,9 @@ spret electric_charge(actor& agent, int powc, bool fail, const coord_def &target
     // Draw a cloud trail behind the charging agent
     ray_def ray;
     if (find_ray(orig_pos, target, ray, opc_solid))
-    {
         while (ray.advance() && ray.pos() != target)
-        {
-            if (!cell_is_solid(ray.pos()) &&
-                (!agent.is_player() || !apply_cloud_trail(ray.pos())))
-            {
+            if (!agent.is_player() || !apply_cloud_trail(ray.pos()))
                 place_cloud(CLOUD_ELECTRICITY, ray.pos(), 2 + random2(3), &agent);
-            }
-        }
-    }
 
     if (agent.pos() != dest_pos) // polar vortex and trap nonsense
         return spret::success; // of a sort
@@ -804,8 +856,9 @@ spret electric_charge(actor& agent, int powc, bool fail, const coord_def &target
     // so we only need to handle delay for players.
     if (agent.is_player())
     {
-        // Normally this is 10 aut (times haste, chei etc), but slow weapons
-        // take longer. Most relevant for low-skill players and Dark Maul.
+        // Normally this is 10 aut (multiplied by haste, slow, etc.), but slow
+        // weapons take longer. Most relevant for low-skill players or things
+        // like the Dark Maul.
         you.time_taken = max(you.attack_delay().roll(), player_speed());
     }
 
@@ -833,10 +886,22 @@ spret controlled_blink(bool safe_cancel, dist *target)
     if (!target)
         target = &empty;
 
-    targeter_smite tgt(&you, LOS_RADIUS);
-    tgt.obeys_mesmerise = true;
-    if (!_find_cblink_target(*target, safe_cancel, "blink", &tgt))
-        return spret::abort;
+    // Fuzz blinking by 2 tiles while in Zot or on the orb run.
+    if (orb_limits_translocation())
+    {
+        targeter_hop tgt(max(1, you.current_vision - 2), false);
+        if (!_find_cblink_target(*target, safe_cancel, "blink", &tgt))
+            return spret::abort;
+        target->target = _fuzz_blink_destination(target->target);
+        mprf(MSGCH_ORB, "You feel the Orb interfering with your translocation!");
+    }
+    else
+    {
+        targeter_smite tgt(&you, LOS_RADIUS);
+        tgt.obeys_mesmerise = true;
+        if (!_find_cblink_target(*target, safe_cancel, "blink", &tgt))
+            return spret::abort;
+    }
 
     // invisible monster that the targeter didn't know to avoid
     if (monster_at(target->target))
@@ -1017,7 +1082,6 @@ static bool _teleport_player(bool wizard_tele, bool teleportitis,
     // (like picking up/dropping an item).
     viewwindow();
     update_screen();
-    StashTrack.update_stash(you.pos());
 
     if (player_in_branch(BRANCH_ABYSS) && !wizard_tele)
     {
@@ -1450,7 +1514,7 @@ spret cast_manifold_assault(actor& agent, int pow, bool fail, bool real,
     {
         if (weapon && is_unrandom_artefact(*weapon, UNRAND_AUTUMN_KATANA))
             mprf("Space folds impossibly around %s blade!", agent.name(DESC_ITS).c_str());
-        else
+        else if (!(agent.is_monster() && agent.as_monster()->has_ench(ENCH_PARADOX_TOUCHED)))
             mpr("Space momentarily warps into an impossible shape!");
     }
 
@@ -1648,7 +1712,7 @@ spret cast_golubrias_passage(int pow, const coord_def& where, bool fail)
     }
 
     if (grid_distance(where, you.pos())
-        > spell_range(SPELL_GOLUBRIAS_PASSAGE, pow))
+        > spell_range(SPELL_GOLUBRIAS_PASSAGE, &you, pow))
     {
         mpr("That's out of range!");
         return spret::abort;
@@ -1743,7 +1807,7 @@ static int _disperse_monster(monster& mon, int pow)
 spret cast_dispersal(int pow, bool fail)
 {
     fail_check();
-    const int radius = spell_range(SPELL_DISPERSAL, pow);
+    const int radius = spell_range(SPELL_DISPERSAL, &you, pow);
     if (!apply_monsters_around_square([pow] (monster& mon) {
             return _disperse_monster(mon, pow);
         }, you.pos(), radius))
@@ -2039,7 +2103,7 @@ spret word_of_chaos(int pow, bool fail)
 
 spret blinkbolt(int power, bolt &beam, bool fail)
 {
-    if (cell_is_solid(beam.target))
+    if (cell_is_invalid_target(beam.target))
     {
         canned_msg(MSG_UNTHINKING_ACT);
         return spret::abort;
@@ -2175,7 +2239,7 @@ int piledriver_path_distance(const coord_def& target, bool actual)
     {
         // Abort if we leave the player's LoS without finding something to hit.
         if (!you.see_cell_no_trans(pos)
-            || grid_distance(target, pos) > spell_range(SPELL_PILEDRIVER, 100))
+            || grid_distance(target, pos) > spell_range(SPELL_PILEDRIVER))
         {
             return 0;
         }
@@ -2529,4 +2593,56 @@ spret cast_teleport_other(const coord_def& target, int power, bool fail)
     beam.set_agent(&you);
 
     return zapping(ZAP_TELEPORT_OTHER, power, beam, false, nullptr, fail);
+}
+
+vector<coord_def> get_bestial_landing_spots(coord_def target)
+{
+    vector<coord_def> spots;
+    for (adjacent_iterator ai(target); ai; ++ai)
+    {
+        if (in_bounds(*ai) && you.see_cell_no_trans(*ai)
+            && !cell_is_solid(*ai) && !is_feat_dangerous(env.grid(*ai))
+            && (!actor_at(*ai) || !you.can_see(*actor_at(*ai))))
+        {
+            spots.push_back(*ai);
+        }
+    }
+
+    return spots;
+}
+
+spret do_bestial_takedown(coord_def target)
+{
+    monster* targ = monster_at(target);
+    ASSERT(targ);
+
+    vector<coord_def> spots = get_bestial_landing_spots(target);
+
+    coord_def landing = spots[random2(spots.size())];
+
+    // We've selected a spot with an invisible monster, so just fling them out
+    // of the way.
+    if (monster_at(landing))
+        _displace_charge_blocker(you, landing);
+
+    mprf("You pounce on %s with bestial fury!", targ->name(DESC_THE).c_str());
+
+    const coord_def old_pos = you.pos();
+    you.moveto(landing, true);
+    viewwindow();
+    update_screen();
+
+    melee_attack atk(&you, targ);
+    atk.dmg_mult = get_form()->get_takedown_multiplier();
+    atk.to_hit = AUTOMATIC_HIT;
+    atk.is_bestial_takedown = true;
+    atk.launch_attack_set();
+
+    you.time_taken = you.attack_delay().roll();
+
+    you.did_deliberate_movement();
+    you.apply_location_effects(old_pos);
+    noisy(5, you.pos(), MID_PLAYER);
+
+    return spret::success;
 }

@@ -253,6 +253,19 @@ LUAFN(you_can_train_skill)
     PLUARET(boolean, you.can_currently_train[sk]);
 }
 
+/*** Is this skill useless (removed, sacrificed, or unusable) to the player?
+ * @tparam string name skill name
+ * @treturn boolean
+ * @function is_useless_skill
+ */
+LUAFN(you_is_useless_skill)
+{
+    skill_type sk = l_skill(ls);
+    if (sk > NUM_SKILLS)
+        return 0;
+    PLUARET(boolean, is_useless_skill(sk));
+}
+
 /*** Best skill.
  * @treturn string
  * @function best_skill
@@ -558,7 +571,7 @@ LUARET1(you_sick, boolean, you.duration[DUR_SICKNESS])
  * @treturn number
  * @function contaminated
  */
-LUARET1(you_contaminated, number, get_contamination_level())
+LUARET1(you_contaminated, number, you.magic_contamination > 0)
 
 /*** Do you feel safe?
  * @treturn boolean
@@ -1113,6 +1126,17 @@ LUAFN(you_caught)
     return 1;
 }
 
+/*** What is your current reaching range?
+ * @treturn int
+ * @function reach_range
+ */
+LUAFN(you_reach_range)
+{
+    lua_pushinteger(ls, you.reach_range());
+
+    return 1;
+}
+
 /*** Get the mutation level of a mutation.
  * If all optional parameters are false this returns zero.
  * @tparam string mutationname
@@ -1144,18 +1168,22 @@ LUAFN(you_get_base_mutation_level)
 
 /*** How mutated are you?
  * Adds up the total number (including levels if requested) of mutations.
- * @tparam boolean innate include innate mutations
- * @tparam boolean levels count levels
+ * @tparam boolean normal include normal mutations
+ * @tparam boolean silver include silver-affecting innate mutations
+ * @tparam boolean all_innate include all innate mutations
  * @tparam boolean temp include temporary mutations
+ * @tparam boolean levels count mutation levels instead of number of unique mutations
  * @treturn int
  * @function how_mutated
  */
 LUAFN(you_how_mutated)
 {
-    bool innate = lua_toboolean(ls, 1); // whether to include innate mutations
-    bool levels = lua_toboolean(ls, 2); // whether to count levels
-    bool temp = lua_toboolean(ls, 3); // whether to include temporary mutations
-    int result = you.how_mutated(innate, levels, temp);
+    bool normal = lua_isboolean(ls, 1) ? lua_toboolean(ls, 1) : true;
+    bool silver = lua_isboolean(ls, 2) ? lua_toboolean(ls, 2) : false;
+    bool all_innate = lua_isboolean(ls, 3) ? lua_toboolean(ls, 3) : false;
+    bool temp = lua_isboolean(ls, 4) ? lua_toboolean(ls, 4) : false;
+    bool levels = lua_isboolean(ls, 5) ? lua_toboolean(ls, 5) : true;
+    int result = you.how_mutated(normal, silver, all_innate, temp, levels);
     PLUARET(number, result);
 }
 
@@ -1425,6 +1453,7 @@ static const struct luaL_reg you_clib[] =
     { "base_skill"  , you_base_skill },
     { "skill_progress", you_skill_progress },
     { "can_train_skill", you_can_train_skill },
+    { "is_useless_skill", you_is_useless_skill },
     { "best_skill",   you_best_skill },
     { "unarmed_damage_rating",   you_unarmed_damage_rating},
     { "unarmed_ego",  you_unarmed_ego},
@@ -1488,6 +1517,7 @@ static const struct luaL_reg you_clib[] =
     { "constricting", you_constricting },
     { "status",       you_status },
     { "immune_to_hex", you_immune_to_hex },
+    { "reach_range", you_reach_range },
 
     { "stop_activity", you_stop_activity },
     { "taking_stairs", you_taking_stairs },
@@ -1615,7 +1645,7 @@ static int _you_piety(lua_State *ls)
         const int new_piety = min(max(luaL_safe_checkint(ls, 1), 0), MAX_PIETY);
         set_piety(new_piety);
     }
-    PLUARET(number, you.piety);
+    PLUARET(number, you.raw_piety);
 }
 
 static int you_dock_piety(lua_State *ls)
@@ -1728,6 +1758,49 @@ LUAFN(you_delete_all_mutations)
     PLUARET(boolean, result);
 }
 
+LUAFN(you_gain_bane)
+{
+    string banename = luaL_checkstring(ls, 1);
+    bane_type bane = bane_from_name(banename);
+    if (bane != NUM_BANES)
+    {
+        string reason = luaL_checkstring(ls, 2);
+        int mult = luaL_checkint(ls, 3);
+        PLUARET(boolean, add_bane(bane, reason, 0, mult > 0 ? mult : 100));
+    }
+
+    string err = make_stringf("No such bane: '%s'.", banename.c_str());
+    return luaL_argerror(ls, 1, err.c_str());
+}
+
+LUAFN(you_xl_to_remove_bane)
+{
+    string banename = luaL_checkstring(ls, 1);
+    bane_type bane = bane_from_name(banename);
+    if (bane != NUM_BANES)
+    {
+        int mult = luaL_checkint(ls, 2);
+        PLUARET(integer, xl_to_remove_bane(bane, mult > 0 ? mult : 100));
+    }
+
+    string err = make_stringf("No such bane: '%s'.", banename.c_str());
+    return luaL_argerror(ls, 1, err.c_str());
+}
+
+LUAFN(you_apply_draining)
+{
+    int amount = luaL_checkinteger(ls, 1);
+    drain_player(amount, true, true);
+    return 0;
+}
+
+LUAFN(you_ostracise)
+{
+    int amount = luaL_checkinteger(ls, 1);
+    ostracise_player(amount);
+    return 0;
+}
+
 LUAFN(you_change_species)
 {
     string species = luaL_checkstring(ls, 1);
@@ -1824,6 +1897,10 @@ static const struct luaL_reg you_dlib[] =
 { "delete_mutation",    you_delete_mutation },
 { "delete_temp_mutations", you_delete_temp_mutations },
 { "delete_all_mutations", you_delete_all_mutations },
+{ "gain_bane",          you_gain_bane },
+{ "xl_to_remove_bane",  you_xl_to_remove_bane },
+{ "apply_draining",     you_apply_draining },
+{ "ostracise",          you_ostracise },
 { "change_species",     you_change_species },
 #ifdef WIZARD
 { "enter_wizard_mode",  you_enter_wizard_mode },

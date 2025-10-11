@@ -185,8 +185,7 @@ static void _pack_shoal_waves(const coord_def &gc, crawl_view_buffer& vbuf)
     if (feat == DNGN_LAVA
         || (feat_is_solid(feat)
                 && feat != DNGN_TREE
-                && feat != DNGN_GRANITE_STATUE
-                && feat != DNGN_METAL_STATUE
+                && !feat_is_statuelike(feat)
                 && feat != DNGN_GRATE
                 && feat != DNGN_RUNED_CLEAR_DOOR))
     {
@@ -523,7 +522,7 @@ void pack_cell_overlays(const coord_def &gc, crawl_view_buffer &vbuf)
         _pack_default_waves(gc, vbuf);
 
     if (env.level_state & LSTATE_SLIMY_WALL
-        && cell.map_knowledge.feat() != DNGN_SLIMY_WALL)
+        && cell.map_knowledge.flags & MAP_CORRODING)
     {
         _add_directional_overlays(gc, vbuf, TILE_SLIME_OVERLAY,
                                   _is_seen_slimy_wall);

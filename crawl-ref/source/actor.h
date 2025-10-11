@@ -14,7 +14,6 @@
 #include "random-var.h"
 #include "ouch.h"
 #include "pronoun-type.h"
-#include "reach-type.h"
 #include "size-part-type.h"
 #include "size-type.h"
 #include "stat-type.h"
@@ -97,7 +96,7 @@ public:
     virtual bool can_burrow() const = 0;
 
     virtual bool is_habitable_feat(dungeon_feature_type actual_grid) const = 0;
-            bool is_habitable(const coord_def &pos) const;
+    virtual bool is_habitable(const coord_def &pos) const;
 
     virtual size_type body_size(size_part_type psize = PSIZE_TORSO,
                                 bool base = false) const = 0;
@@ -145,7 +144,7 @@ public:
     virtual bool can_see_invisible() const = 0;
     virtual bool invisible() const = 0;
     virtual bool nightvision() const = 0;
-    virtual reach_type reach_range() const = 0;
+    virtual int reach_range() const = 0;
 
     // Would looker be able to see the actor when in LOS?
     virtual bool visible_to(const actor *looker) const = 0;
@@ -171,7 +170,8 @@ public:
     virtual bool has_bones(bool temp = true) const = 0;
     virtual bool is_stationary() const = 0;
     virtual bool malmutate(const actor* source, const string &reason = "") = 0;
-    virtual bool polymorph(int pow, bool allow_immobile = true) = 0;
+    virtual bool polymorph(int dur, bool allow_immobile = true) = 0;
+    virtual bool doom(int amount) = 0;
     virtual bool drain(const actor *agent, bool quiet = false,
                        int pow = 3) = 0;
     virtual int  hurt(const actor *attacker, int amount,
@@ -199,8 +199,11 @@ public:
     virtual void put_to_sleep(actor *attacker, int duration,
                               bool hibernate = false) = 0;
     virtual void weaken(const actor *attacker, int pow) = 0;
+    virtual void diminish(const actor *attacker, int pow) = 0;
     virtual bool strip_willpower(actor *attacker, int dur,
                                  bool quiet = false) = 0;
+    virtual void daze(int duration) = 0;
+    virtual void vitrify(const actor *attacker, int duration, bool quiet = false) = 0;
     virtual void expose_to_element(beam_type element, int strength = 0,
                                    const actor* source = nullptr,
                                    bool slow_cold_blood = true) = 0;
@@ -229,9 +232,6 @@ public:
     virtual int stealth () const = 0;
 
     virtual bool can_throw_large_rocks() const = 0;
-
-    virtual bool can_be_dazzled() const = 0;
-    virtual bool can_be_blinded() const = 0;
 
     virtual int armour_class() const = 0;
     virtual int gdr_perc(bool random = true) const = 0;
@@ -277,6 +277,7 @@ public:
     virtual bool res_polar_vortex() const = 0;
     virtual bool res_petrify(bool temp = true) const = 0;
     virtual bool res_constrict() const = 0;
+    virtual int res_blind() const = 0;
     int get_res(int res) const;
     virtual int willpower() const = 0;
     virtual int check_willpower(const actor* source, int power) const;

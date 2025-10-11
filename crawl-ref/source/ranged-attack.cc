@@ -408,10 +408,18 @@ int ranged_attack::apply_damage_modifiers(int damage)
     if (attacker->as_monster()->has_ench(ENCH_TOUCH_OF_BEOGH))
         damage = damage * 4 / 3;
 
+    if (attacker->as_monster()->has_ench(ENCH_FIGMENT))
+        damage = damage * 2 / 3;
+
     if (attacker->as_monster()->is_archer())
     {
         const int bonus = archer_bonus_damage(attacker->get_hit_dice());
         damage += random2avg(bonus, 2);
+    }
+    if (attacker->as_monster()->wearing_ego(OBJ_ARMOUR, SPARM_SNIPING)
+        && defender->incapacitated())
+    {
+        damage = damage * 3 / 2;
     }
     return damage;
 }
@@ -420,6 +428,11 @@ int ranged_attack::player_apply_final_multipliers(int damage, bool /*aux*/)
 {
     if (!throwing())
         damage = apply_rev_penalty(damage);
+    if (you.wearing_ego(OBJ_ARMOUR, SPARM_SNIPING)
+        && defender->incapacitated())
+    {
+        damage = damage * 3 / 2;
+    }
     return damage;
 }
 
@@ -759,7 +772,7 @@ bool ranged_attack::apply_missile_brand()
     case SPMSL_BLINDING:
         if (!dart_check(brand))
             break;
-        if (defender->can_be_blinded())
+        if (!defender->res_blind())
         {
             if (defender->is_player())
                 blind_player(damage_done, LIGHTGREEN);

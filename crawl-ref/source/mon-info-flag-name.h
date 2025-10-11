@@ -75,7 +75,7 @@ static const vector<monster_info_flag_name> monster_info_flag_names = {
     { MB_CLOUD_RING_MIASMA, "clouds", "surrounded by foul miasma", "clouds" },
     { MB_FIRE_CHAMPION, "flame-wreathed", "flame-wreathed", "flame-wreathed"},
     { MB_SILENCE_IMMUNE, "unsilenced", "unaffected by silence", "unsilenced" },
-    { MB_DOUBLED_HEALTH, "doubled health", "doubled in health", "doubled health"},
+    { MB_DOUBLED_VIGOUR, "doubled vigour", "doubled in vigour", "doubled vigour"},
     // Vulnerabilities
     { MB_POSSESSABLE, "soul-gripped", "soul-gripped", "soul-gripped"},
     { MB_CAUGHT, "caught", "entangled in a net", "caught"},
@@ -158,4 +158,9 @@ static const vector<monster_info_flag_name> monster_info_flag_names = {
     { MB_CHAOS_LACE, "chaos-laced", "interlaced with chaos", "chaos-laced"},
     { MB_VEXED, "vexed", "lashing out in frustration", "vexed"},
     { MB_PYRRHIC_RECOLLECTION, "ablaze", "ablaze with memories", "ablaze"},
+    { MB_CLOCKWORK_BEE_CAST, "bee", "winding a clockwork bee", "bee"},
+    { MB_FIGMENT, "figment", "feeble figment", "figment"},
+    { MB_PARADOX, "paradox", "touched by paradox", "paradox"},
+    { MB_WARDING, "warded", "damage-immune at range", "warded"},
+    { MB_DIMINISHED_SPELLS, "dim", "diminished spells", "dim"},
 };

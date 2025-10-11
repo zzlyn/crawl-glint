@@ -202,7 +202,7 @@ namespace quiver
     bool action::do_inscription_check() const
     {
         const int slot = get_item();
-        if (slot <= 0 || slot >= ENDOFPACK || !you.inv[slot].defined())
+        if (slot < 0 || slot >= ENDOFPACK || !you.inv[slot].defined())
             return true;
 
         return check_warning_inscriptions(you.inv[slot], OPER_FIRE);
@@ -211,7 +211,7 @@ namespace quiver
     int action::source_hotkey() const
     {
         if (get_item() >= 0 && is_valid())
-            return index_to_letter(get_item());
+            return you.inv[get_item()].slot;
         return 0;
     }
 
@@ -388,7 +388,7 @@ namespace quiver
                 string verb = you.confused() ? "confused " : "";
                 verb += quiver_verb();
                 qdesc.cprintf("%s: %c) ", uppercase_first(verb).c_str(),
-                                index_to_letter(weapon.link));
+                                weapon.slot);
             }
 
             const string prefix = item_prefix(weapon);
@@ -467,7 +467,7 @@ namespace quiver
                 return "punch";
             }
 
-            if (weapon_reach(*weapon) > REACH_NONE)
+            if (weapon_reach(*weapon) > 1)
                 return "reach";
             else if (attack_cleaves(you))
                 return "cleave";
@@ -492,7 +492,7 @@ namespace quiver
 
                 verb += quiver_verb();
                 qdesc.cprintf("%s: %c) ", uppercase_first(verb).c_str(),
-                                weapon ? index_to_letter(weapon->link) : '-');
+                                weapon ? weapon->slot : '-');
             }
 
             const string prefix = weapon ? item_prefix(*weapon) : "";
@@ -578,7 +578,7 @@ namespace quiver
                 return;
 
             target.isEndpoint = true; // is this needed? imported from autofight code
-            const reach_type reach_range = you.reach_range();
+            const int reach_range = you.reach_range();
 
             direction_chooser_args args;
             args.restricts = DIR_TARGET;
@@ -645,7 +645,7 @@ namespace quiver
                     you.turn_is_over = true;
                     return;
                 }
-                else
+                else if (!monster_at(target.target))
                 {
                     canned_msg(MSG_SOMETHING_IN_WAY);
                     return;
@@ -654,11 +654,11 @@ namespace quiver
 
             // Check for a monster in the way. If there is one, it blocks the reaching
             // attack 50% of the time, and the attack tries to hit it if it is hostile.
-            // REACH_THREE entails smite targeting; this is a bit hacky in that
+            // Reach 3 entails smite targeting; this is a bit hacky in that
             // this is entirely for the sake of UNRAND_RIFT.
             // Cleaving reaches also will never fail to miss, since the player can
             // just attack another target in most cases to hit both.
-            if (reach_range < REACH_THREE
+            if (reach_range < 3
                 && !attack_cleaves(you)
                 && (x_distance > 1 || y_distance > 1))
             {
@@ -698,7 +698,7 @@ namespace quiver
                     if (mons->wont_attack())
                     {
                         // Let's assume friendlies cooperate.
-                        mpr("You could not reach far enough!");
+                        mprf("You fail to reach past %s.", mons->name(DESC_THE).c_str());
                         you.time_taken = attack_delay;
                         you.turn_is_over = true;
                         return;
@@ -732,7 +732,7 @@ namespace quiver
             }
             else
             {
-                if (is_valid_tempering_target(*mons, you) && !you.confused())
+                if (is_valid_tempering_target(*mons, you, true) && !you.confused())
                 {
                     mprf("You deconstruct %s.", mons->name(DESC_THE).c_str());
                     monster_die(*mons, KILL_RESET, NON_MONSTER);
@@ -1121,7 +1121,9 @@ namespace quiver
 
         bool uses_mp() const override
         {
-            return is_valid();
+            const bool enkindled = you.duration[DUR_ENKINDLED]
+                                   && spell_can_be_enkindled(spell);
+            return is_valid() && !enkindled;
         }
 
         bool check_channelled_spells() const
@@ -1283,7 +1285,6 @@ namespace quiver
         switch (a)
         {
         case ABIL_END_TRANSFORMATION:
-        case ABIL_BEGIN_UNTRANSFORM:
         case ABIL_TSO_BLESS_WEAPON:
         case ABIL_KIKU_BLESS_WEAPON:
         case ABIL_KIKU_GIFT_CAPSTONE_SPELLS:
@@ -1335,7 +1336,7 @@ namespace quiver
         case ABIL_RU_POWER_LEAP: // disable under nomove, or altogether?
         case ABIL_SPIT_POISON:
         case ABIL_CAUSTIC_BREATH:
-        case ABIL_BREATHE_FIRE:
+        case ABIL_GOLDEN_BREATH:
         case ABIL_GLACIAL_BREATH:
         case ABIL_BREATHE_POISON:
         case ABIL_NULLIFYING_BREATH:
@@ -2827,7 +2828,7 @@ namespace quiver
                 return _choose_from_inv();
             else if (key == '&' && any_spells)
             {
-                const int skey = list_spells(false, false, false,
+                const int skey = list_spells(false, false, false, false,
                                                     "quiver");
                 if (skey == 0)
                     return true;
@@ -3172,7 +3173,7 @@ static int _get_pack_slot(const item_def &item)
         return item.link;
 
     // First try to find the exact same item.
-    for (int i = 0; i < ENDOFPACK; i++)
+    for (int i = 0; i < MAX_GEAR; i++)
     {
         const item_def &inv_item = you.inv[i];
         if (inv_item.quantity && _items_similar(item, inv_item, false))
@@ -3180,7 +3181,7 @@ static int _get_pack_slot(const item_def &item)
     }
 
     // If that fails, try to find an item sufficiently similar.
-    for (int i = 0; i < ENDOFPACK; i++)
+    for (int i = 0; i < MAX_GEAR; i++)
     {
         const item_def &inv_item = you.inv[i];
         if (inv_item.quantity && _items_similar(item, inv_item, true))

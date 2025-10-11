@@ -927,6 +927,14 @@ function ($, view_data, gui, main, tileinfo_player, icons, dngn, enums,
 
                     this.draw_main(fg_idx, x, y, img_scale);
                 }
+
+                if (fg_idx >= main.PARCHMENT_LOW && fg_idx <= main.PARCHMENT_HIGH)
+                {
+                    if (cell.overlay1)
+                        this.draw_main(cell.overlay1, x, y, img_scale);
+                    if (cell.overlay2)
+                        this.draw_main(cell.overlay2, x, y, img_scale);
+                }
             }
             else if (options.get("tile_display_mode") == "hybrid")
             {
@@ -1097,6 +1105,7 @@ function ($, view_data, gui, main, tileinfo_player, icons, dngn, enums,
                 case icons.NOBODY_MEMORY_2:
                 case icons.NOBODY_MEMORY_3:
                 case icons.PYRRHIC:
+                case icons.FRENZIED:
                     this.draw_icon(idx, x, y, undefined, undefined, img_scale);
                     return 0;
                 case icons.DRAIN:
@@ -1117,6 +1126,8 @@ function ($, view_data, gui, main, tileinfo_player, icons, dngn, enums,
                 case icons.VITRIFIED:
                 case icons.CONFUSED:
                 case icons.LACED_WITH_CHAOS:
+                case icons.SENTINEL_MARK:
+                case icons.DIMMED:
                     this.draw_icon(idx, x, y, ofsx, ofsy, img_scale);
                     return 6;
                 case icons.CONC_VENOM:
@@ -1156,12 +1167,15 @@ function ($, view_data, gui, main, tileinfo_player, icons, dngn, enums,
                 case icons.BIND:
                 case icons.SIGN_OF_RUIN:
                 case icons.WEAK_WILLED:
-                case icons.DOUBLED_HEALTH:
+                case icons.DOUBLED_VIGOUR:
                 case icons.KINETIC_GRAPNEL:
                 case icons.TEMPERED:
                 case icons.HEART:
                 case icons.UNSTABLE:
                 case icons.VEXED:
+                case icons.PARADOX:
+                case icons.WARDING:
+                case icons.FIGMENT:
                     this.draw_icon(idx, x, y, ofsx, ofsy, img_scale);
                     return 10;
                 case icons.CONSTRICTED:

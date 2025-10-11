@@ -84,21 +84,8 @@ local function vector_move(a, dx, dy)
   end
 end
 
-local function reach_range()
-  local r = 1
-  local wp = items.equipped_at("weapon")
-  if wp and not wp.is_melded then
-      r = wp.reach_range
-  end
-  local o = items.equipped_at("shield")
-  if o and not o.is_melded and o.is_weapon and o.reach_range > r then
-      r = o.reach_range
-  end
-  return r
-end
-
 local function have_reaching()
-  return reach_range() > 1
+  return you.reach_range() > 1
 end
 
 local function have_ranged()
@@ -216,7 +203,7 @@ local function move_towards(dx, dy)
 end
 
 local function will_tab(ax, ay, bx, by)
-  local range = reach_range()
+  local range = you.reach_range()
   if abs(bx-ax) <= range and abs(by-ay) <= range then
     return true
   end
@@ -247,7 +234,7 @@ local function get_monster_info(dx,dy,no_move)
   elseif not have_reaching() then
     info.attack_type = (-info.distance < 2) and AF_MELEE or AF_MOVES
   else
-    local range = reach_range()
+    local range = you.reach_range()
     -- Assume extended reach (i.e. Rift) gets smite targeting.
     local can_reach = range > 2 and you.see_cell_no_trans or view.can_reach
     if -info.distance > range then
@@ -266,6 +253,11 @@ local function get_monster_info(dx,dy,no_move)
     -- CMD_AUTOFIRE, so force firing.
     -- TODO: refactor so that this is less hacky
     info.attack_type = AF_FIRE
+  end
+
+  -- We can possibly move towards warded enemies, but not attack them while immune
+  if m:is_damage_immune() and m:is("warding") then
+    info.attack_type = AF_MOVES
   end
 
   if info.attack_type == AF_MOVES and not will_tab(0,0,dx,dy) then
@@ -298,7 +290,7 @@ local function compare_monster_info(m1, m2)
   return false
 end
 
-local function is_candidate_for_attack(x,y)
+local function is_candidate_for_attack(x,y, no_move)
   m = monster.get_monster_at(x, y)
   --if m then crawl.mpr("Checking: (" .. x .. "," .. y .. ") " .. m:name()) end
   if not m then
@@ -313,6 +305,9 @@ local function is_candidate_for_attack(x,y)
     if string.find(m:name(), "ballistomycete") then
       return true
     end
+    return false
+  end
+  if m:is_damage_immune() and (no_move or not m:is("warding")) then
     return false
   end
   if m:attitude() == ATT_HOSTILE
@@ -330,7 +325,7 @@ local function get_target(no_move)
   best_info = nil
   for x = -los_radius,los_radius do
     for y = -los_radius,los_radius do
-      if is_candidate_for_attack(x, y) then
+      if is_candidate_for_attack(x, y, no_move) then
         new_info = get_monster_info(x, y, no_move)
         if (not best_info) or compare_monster_info(new_info, best_info) then
           bestx = x

@@ -75,7 +75,10 @@ struct beam_tracer
     {
         UNUSED(bolt, mon);
     }
-    virtual void cancel() {}
+    virtual void blocked(string message)
+    {
+        UNUSED(message);
+    }
 };
 
 // Used when casting a spell to check if the spell should be aborted
@@ -93,7 +96,8 @@ struct player_beam_tracer : beam_tracer
     const monster* god_hated_target = nullptr;
     int hit_self_count = 0;
     int foe_count = 0;
-    bool cancelled = false;
+    string blocked_message;
+    int blocked_count = 0;
 
     player_beam_tracer() {}
 
@@ -107,7 +111,7 @@ struct player_beam_tracer : beam_tracer
     void actor_affected(bool friendly_fire, int power) noexcept override;
     void player_hit() noexcept override;
     void monster_hit(const bolt& bolt, const monster& mon) override;
-    void cancel() noexcept override;
+    void blocked(string message) noexcept override;
 };
 
 // Used to check if casting a spell might be useful
@@ -220,10 +224,10 @@ struct bolt
     mon_attitude_type attitude = ATT_HOSTILE; // attitude of whoever fired the bolt
     int foe_ratio = 0;           // 100* foe ratio (see mons_should_fire())
     map<mid_t, int> hit_count;   // how many times targets were affected
-    int foes_hurt;               // number of foes actually hurt
-    int foes_helped;             // number of foes actually helped
-    int friends_hurt;            // number of friends actually hurt
-    int friends_helped;          // number of friends actually helped
+    int foes_hurt = 0;               // number of foes actually hurt
+    int foes_helped = 0;             // number of foes actually helped
+    int friends_hurt = 0;            // number of friends actually hurt
+    int friends_helped = 0;          // number of friends actually helped
 
     beam_tracer* tracer = nullptr;
 
@@ -366,7 +370,7 @@ private:
     // for monsters
     void affect_monster(monster* m);
     void kill_monster(monster &m);
-    void check_for_friendly_past_target(monster* mon);
+    bool check_for_friendly_past_target(monster* mon);
     bool attempt_block(monster* mon);
     void update_hurt_or_helped(monster* mon);
     void enchantment_affect_monster(monster* mon);
@@ -448,7 +452,6 @@ set<coord_def> create_feat_splash(coord_def center, int radius, int num, int dur
 void init_zap_index();
 void clear_zap_info_on_exit();
 
-int zap_power_cap(zap_type ztype);
 bool zap_explodes(zap_type ztype);
 bool zap_is_enchantment(zap_type ztype);
 int zap_ench_power(zap_type z_type, int pow, bool is_monster);
@@ -473,5 +476,9 @@ void fill_chain_targets(const bolt& beam, coord_def centre,
 
 bolt setup_targeting_beam(const monster &mons);
 
-bool cancel_beam_prompt(const bolt& beam,
-                                const player_beam_tracer& tracer);
+bool cancel_beam_prompt(const bolt& beam, const player_beam_tracer& tracer,
+                        int beams_fired = 1);
+
+int apply_willpower_bypass(const actor& source, int willpower);
+int apply_willpower_bypass(const monster_info& source, int willpower);
+int guile_will_reduction(bool max = false);

@@ -91,6 +91,7 @@ struct mgen_data
 
     int             hd;
     int             hp;
+    int             exp;
 
     // These flags will be appended to the monster's flags after placement.
     monster_flags_t extra_flags;
@@ -130,7 +131,7 @@ struct mgen_data
           summon_type(0), pos(p), foe(mfoe), flags(genflags), god(which_god),
           base_type(MONS_NO_MONSTER), colour(COLOUR_INHERIT),
           proximity(PROX_ANYWHERE), place(level_id::current()), hd(0), hp(0),
-          extra_flags(MF_NO_FLAGS), mname(""), non_actor_summoner(""),
+          exp(0), extra_flags(MF_NO_FLAGS), mname(""), non_actor_summoner(""),
           initial_shifter(RANDOM_MONSTER), xp_tracking(XP_NON_VAULT)
     { }
 
@@ -202,6 +203,15 @@ struct mgen_data
             summoner = _summoner;
         summon_duration = duration;
         summon_type = _summon_type;
+
+        if (_summoner && _summoner->temp_attitude() == ATT_HOSTILE
+            && you.has_bane(BANE_HUNTED) && pos == _summoner->pos()
+            && you.see_cell_no_trans(_summoner->pos()))
+        {
+            pos = you.pos();
+            set_range(1, range_max);
+            summon_duration = summon_duration * 5 / 2;
+        }
 
         // It doesn't make sense to have an abjurable summon with no duration.
         if (duration == 0)

@@ -47,6 +47,11 @@
 
 static void _mark_unseen_monsters();
 
+static bool _use_slots(unrand_type item, bool count_melded, bool count_items)
+{
+    return count_items && you.unrand_equipped(item, count_melded);
+}
+
 /**
  * Returns how many slots of a given type the player character currently has
  * (potentially accounting for additional slots granted by forms, mutations, and
@@ -59,10 +64,15 @@ static void _mark_unseen_monsters();
  * @param slot              The equipment slot being checked.
  * @param zero_reason[out]  If there are no slots of the given type, and this is
  *                          non-null, it is set to the reason why there are 0.
+ * @param count_melded_unrands    Whether to count slots granted by unrands which
+ *                                are currently melded. (Defaults to false.)
+ * @param count_items       Whether to count slots granted by items.
+ *                          (Defaults to true.)
  *
  * @return The number of slots of the given type the player has.
  */
-int get_player_equip_slot_count(equipment_slot slot, string* zero_reason)
+int get_player_equip_slot_count(equipment_slot slot, string* zero_reason,
+                                bool count_melded_unrands, bool count_items)
 {
 #define NO_SLOT(x) {if (count == 0) {if (zero_reason) { *zero_reason = x; }; return 0;}}
 
@@ -120,16 +130,18 @@ int count = 0;
     // Hats versus helmets is handled elsewhere. If you can wear at least a hat,
     // this should be non-zero.
     case SLOT_HELMET:
-        if (you.unrand_equipped(UNRAND_SKULL_OF_ZONGULDROK))
+        if (_use_slots(UNRAND_SKULL_OF_ZONGULDROK, count_melded_unrands, count_items))
             ++count;
 
         if (you.has_mutation(MUT_FORMLESS))
             NO_SLOT("You don't have a head.")
         else if (you.has_mutation(MUT_NO_ARMOUR))
             NO_SLOT("That is much too large for your head.")
-        else if (you.get_mutation_level(MUT_HORNS, mutation_activity_type::INACTIVE) >= 3)
+        else if (you.form == transformation::serpent)
+            return 2;
+        else if (you.get_mutation_level(MUT_HORNS, false) >= 3)
             NO_SLOT("You can't wear any headgear with your large horns!")
-        else if (you.get_mutation_level(MUT_ANTENNAE, mutation_activity_type::INACTIVE) >= 3)
+        else if (you.get_mutation_level(MUT_ANTENNAE, false) >= 3)
             NO_SLOT("You can't wear any headgear with your large antennae!")
         else
             ++count;
@@ -137,7 +149,7 @@ int count = 0;
         return count;
 
     case SLOT_GLOVES:
-        if (you.unrand_equipped(UNRAND_FISTICLOAK))
+        if (_use_slots(UNRAND_FISTICLOAK, count_melded_unrands, count_items))
             ++count;
 
         if (you.has_mutation(MUT_QUADRUMANOUS))
@@ -151,9 +163,9 @@ int count = 0;
             NO_SLOT(make_stringf("Those are too small for your %s.", you.hand_name(true).c_str()))
         else if (you.species == SP_OCTOPODE || you.has_mutation(MUT_NO_ARMOUR))
             NO_SLOT(make_stringf("Those can't fit on your %s.", you.hand_name(true).c_str()))
-        else if (you.get_mutation_level(MUT_CLAWS, mutation_activity_type::INACTIVE) >= 3)
+        else if (you.get_mutation_level(MUT_CLAWS, false) >= 3)
             NO_SLOT(make_stringf("Those can't fit over your huge %s.", you.hand_name(true).c_str()))
-        else if (you.get_mutation_level(MUT_DEMONIC_TOUCH, mutation_activity_type::INACTIVE) >= 3)
+        else if (you.get_mutation_level(MUT_DEMONIC_TOUCH, false) >= 3)
             NO_SLOT("Your demonic touch would destroy those.")
         else
             ++count;
@@ -169,9 +181,9 @@ int count = 0;
             NO_SLOT(make_stringf("Those are too small for your %s.", you.foot_name(true).c_str()))
         else if (you.species == SP_OCTOPODE || you.has_mutation(MUT_NO_ARMOUR))
             NO_SLOT("You can't wear boots.")
-        else if (you.get_mutation_level(MUT_HOOVES, mutation_activity_type::INACTIVE) >= 3)
+        else if (you.get_mutation_level(MUT_HOOVES, false) >= 3)
             NO_SLOT("Your hooves can't fit into boots.")
-        else if (you.get_mutation_level(MUT_TALONS, mutation_activity_type::INACTIVE) >= 3)
+        else if (you.get_mutation_level(MUT_TALONS, false) >= 3)
             NO_SLOT("Your talons can't fit into boots.")
         else if (you.has_mutation(MUT_FLOAT))
             NO_SLOT("You have no feet!")
@@ -182,14 +194,22 @@ int count = 0;
         if (species::wears_barding(you.species))
             return 1;
 
+        if (you.form == transformation::sphinx && !you.has_mutation(MUT_NO_ARMOUR))
+            return 1;
+
         NO_SLOT("You can't fit into that!")
 
     case SLOT_CLOAK:
+        // If octopodes are allowed to wear bardings, then surely they can also
+        // get a cloak, too.
+        if (you.form == transformation::sphinx && !you.has_mutation(MUT_NO_ARMOUR))
+            return 1;
+
         if (you.has_mutation(MUT_FORMLESS))
             NO_SLOT("You don't have any shoulders.")
         else if (you.species == SP_OCTOPODE || you.has_mutation(MUT_NO_ARMOUR))
             NO_SLOT("You can't wear that.")
-        else if (you.get_mutation_level(MUT_WEAKNESS_STINGER, mutation_activity_type::INACTIVE) >= 3)
+        else if (you.get_mutation_level(MUT_WEAKNESS_STINGER, false) >= 3)
             NO_SLOT("You can't wear that with your sharp stinger!")
 
         return 1;
@@ -206,10 +226,10 @@ int count = 0;
         if (you.has_mutation(MUT_MISSING_HAND))
             ring_count -= 1;
 
-        if (you.unrand_equipped(UNRAND_FINGER_AMULET))
+        if (_use_slots(UNRAND_FINGER_AMULET, count_melded_unrands, count_items))
             ring_count += 1;
 
-        if (you.unrand_equipped(UNRAND_VAINGLORY))
+        if (_use_slots(UNRAND_VAINGLORY, count_melded_unrands, count_items))
             ring_count += 2;
 
         return ring_count;
@@ -219,7 +239,7 @@ int count = 0;
         if (you.has_mutation(MUT_NO_JEWELLERY))
             NO_SLOT("You can't wear amulets.")
 
-        if (you.unrand_equipped(UNRAND_JUSTICARS_REGALIA))
+        if (_use_slots(UNRAND_JUSTICARS_REGALIA, count_melded_unrands, count_items))
             return 2;
 
         return 1;
@@ -233,6 +253,12 @@ int count = 0;
     case SLOT_HAUNTED_AUX:
         if (you.has_mutation(MUT_FORMLESS))
             return 6;
+        else
+            return 0;
+
+    case SLOT_TWOHANDER_ONLY:
+        if (you.form == transformation::fortress_crab)
+            return 1;
         else
             return 0;
 
@@ -260,6 +286,7 @@ const static vector<equipment_slot> _flex_slots[] =
 
     {SLOT_WEAPON_OR_OFFHAND, SLOT_WEAPON, SLOT_OFFHAND},
     {SLOT_HAUNTED_AUX, SLOT_HELMET, SLOT_GLOVES, SLOT_BOOTS, SLOT_CLOAK},
+    {SLOT_TWOHANDER_ONLY},
 
     // NUM_EQUIP_SLOTS
     {},
@@ -286,6 +313,9 @@ const static vector<equipment_slot> _flex_slots[] =
 
     // SLOT_WEAPON_STRICT
     {SLOT_WEAPON},
+
+    // SLOT_TWOHANDER_OFFHAND
+    {SLOT_OFFHAND, SLOT_WEAPON_OR_OFFHAND, SLOT_TWOHANDER_ONLY},
 };
 
 const vector<equipment_slot>& get_alternate_slots(equipment_slot slot)
@@ -300,12 +330,19 @@ player_equip_set::player_equip_set()
     items.clear();
     unrand_active.init(false);
     artprop_cache.init(0);
+    armour_egos.init(0);
+    gizmo_egos.init(false);
     do_unrand_reacts = 0;
     do_unrand_death_effects = 0;
 }
 
 int player_equip_set::wearing_ego(object_class_type obj_type, int ego) const
 {
+    if (obj_type == OBJ_ARMOUR)
+        return armour_egos[ego];
+    else if (obj_type == OBJ_GIZMOS)
+        return gizmo_egos[ego];
+
     int total = 0;
     for (const player_equip_entry& entry : items)
     {
@@ -319,11 +356,6 @@ int player_equip_set::wearing_ego(object_class_type obj_type, int ego) const
             {
                 case OBJ_WEAPONS:
                     if (get_weapon_brand(item) == ego)
-                        ++total;
-                    break;
-
-                case OBJ_ARMOUR:
-                    if (get_armour_ego_type(item) == ego)
                         ++total;
                     break;
 
@@ -458,9 +490,10 @@ bool can_equip_item(const item_def& item, bool include_form, string* veto_reason
                         *veto_reason = "You can't equip that in your current form.";
                 }
                 else
+                {
                     found_slot = true;
-
-                break;
+                    break;
+                }
             }
         }
 
@@ -487,6 +520,11 @@ bool can_equip_item(const item_def& item, bool include_form, string* veto_reason
 
         if (is_hard_helmet(item))
         {
+            // Allow serpent form to wear helmets even if the underlying player
+            // could not (since the current implement of hat/helmet limitations
+            // is buggy otherwise).
+            if (you.form == transformation::serpent)
+                return true;
             if (player_size >= SIZE_LARGE)
                 NO_EQUIP("This helmet is too small for your head.")
             else if (player_size <= SIZE_LITTLE)
@@ -495,11 +533,11 @@ bool can_equip_item(const item_def& item, bool include_form, string* veto_reason
                 NO_EQUIP("You can't wear that with your reptilian head.")
             else if (you.species == SP_OCTOPODE)
                 NO_EQUIP("Your can't wear that!")
-            else if (you.has_mutation(MUT_HORNS))
+            else if (you.has_mutation(MUT_HORNS, include_form))
                 NO_EQUIP("You can't fit that over your horns.")
-            else if (you.has_mutation(MUT_ANTENNAE))
+            else if (you.has_mutation(MUT_ANTENNAE, include_form))
                 NO_EQUIP("You can't fit that over your antennae.")
-            else if (you.has_mutation(MUT_BEAK))
+            else if (you.has_mutation(MUT_BEAK, include_form))
                 NO_EQUIP("You can't fit that over your beak.")
         }
     }
@@ -521,6 +559,8 @@ void player_equip_set::update()
 {
     unrand_active.reset();
     artprop_cache.init(0);
+    armour_egos.init(0);
+    gizmo_egos.init(false);
 
     artefact_properties_t artprops;
     for (const player_equip_entry& entry : items)
@@ -531,6 +571,14 @@ void player_equip_set::update()
             continue;
 
         const item_def& item = entry.get_item();
+
+        if (!entry.melded)
+        {
+            if (item.base_type == OBJ_ARMOUR)
+                armour_egos[get_armour_ego_type(item)] += 1;
+            else if (item.base_type == OBJ_GIZMOS)
+                gizmo_egos[item.brand] = true;
+        }
 
         if (is_artefact(item))
         {
@@ -551,10 +599,10 @@ void player_equip_set::update()
         }
     }
 
-    if (you.active_talisman.defined() && is_artefact(you.active_talisman)
+    if (you.active_talisman() && is_artefact(*you.active_talisman())
         && you.form == you.default_form)
     {
-        artefact_properties(you.active_talisman, artprops);
+        artefact_properties(*you.active_talisman(), artprops);
 
         for (int j = 0; j < (int)artprops.size(); ++j)
             artprop_cache[j] += artprops[j];
@@ -573,17 +621,9 @@ void player_equip_set::update()
  *
  * @param item             The item we're trying to equip.
  *
- * @param[out] to_replace  If there is no appropriate empty slot, but there are
- *                         slots with items that could be removed to make room
- *                         for this item, the items in those slots will be
- *                         added to this vector.
- *
- *                         For items which occupy more than one slot at a time,
- *                         each vector within this vector represents a distinct
- *                         item (or set of possible items) which must be removed.
- *                         ie: if equipping a two-handed weapon, to_replace may
- *                         contain {{Current Weapon}, {Current Shield}} while
- *                         {{Ring 1, Ring 2}} might result from equpping a ring.
+ * @param[out] requires_replace  True if there is no appropriate empty slot,
+ *                               but there are slots with items that could be
+ *                               removed to make room for this item.
  *
  * @param ignore_curses    If true, treats cursed items as they were removable.
  *                         (Used for equipment preview, so that it can display
@@ -594,26 +634,48 @@ void player_equip_set::update()
  *
  *          Important: in cases of items that occupy more than one slot, this
  *          may return a specific slot even though items must still be removed
- *          to be able to equip this! Only a slot *and* an empty to_replace
- *          vector can be interpreted as 'no further action needed to equip
- *          this'. In cases it returns SLOT_UNUSED and there are items in
- *          to_replace, the item should go in the slot of the first one of those
- *          removed.
+ *          to be able to equip this! Only a slot *and* requires_replace set
+ *          to false can be interpreted as 'no further action needed to equip
+ *          this'.
  */
 equipment_slot player_equip_set::find_slot_to_equip_item(const item_def& item,
-                                                         vector<vector<item_def*>>& to_replace,
-                                                         bool ignore_curses) const
+                                                      bool& requires_replace,
+                                                      bool ignore_curses) const
 {
+    requires_replace = false;
     vector<equipment_slot> slots = get_all_item_slots(item);
+    if (slots.size() == 1u)
+    {
+        equipment_slot free_slot = find_free_compatible_slot(slots[0]);
+        if (free_slot != SLOT_UNUSED)
+            return free_slot;
 
-    FixedVector<int, NUM_EQUIP_SLOTS> slot_count = num_slots;
+        vector<item_def*> to_replace;
+        find_removable_items_for_slot(slots[0], to_replace, ignore_curses,
+                                      false);
+        requires_replace = !to_replace.empty();
+        return SLOT_UNUSED;
+    }
+
+    vector<item_def*> to_replace;
+    player_equip_set equipment = *this;
     equipment_slot ret = SLOT_UNUSED;
     for (size_t i = 0; i < slots.size(); ++i)
     {
-        to_replace.emplace_back();
-        equipment_slot slot = find_slot_to_equip_item(slots[i], to_replace.back(),
-                                                      slot_count,
-                                                      ignore_curses);
+        equipment_slot slot = find_free_compatible_slot(slots[i]);
+        if (slot == SLOT_UNUSED)
+        {
+            find_removable_items_for_slot(slots[i], to_replace, ignore_curses,
+                                          false);
+        }
+
+        // If a slot is unavailable and there is nothing the player could
+        // remove to change that fact, we must abort completely.
+        if (slot == SLOT_UNUSED && to_replace.empty())
+        {
+            requires_replace = false;
+            return SLOT_UNUSED;
+        }
 
         // Save this result to return, if it is possible to fill other slots.
         if (i == 0)
@@ -622,38 +684,30 @@ equipment_slot player_equip_set::find_slot_to_equip_item(const item_def& item,
         // Track that this slot was used (to handle the case of multi-slot
         // items competing for the same flex slot, such as poltergeists wearing
         // the Fungal Fisticloak).
-        slot_count[slot] -= 1;
+        equipment.num_slots[slot] -= 1;
 
-        if (slot == SLOT_UNUSED)
+        // If we had to remove an item to free this slot, remove it from the
+        // equipment now so that we don't remove the same item again if we need
+        // another slot of the same type (e.g. the Fungal Fisticloak needs two
+        // aux slots on poltergeists).
+        if (!to_replace.empty())
         {
-            // If a slot is unavailable and there is nothing the player could
-            // remove to change that fact, we must abort completely.
-            if (to_replace.back().empty())
-            {
-                to_replace.clear();
-                return SLOT_UNUSED;
-            }
+            equipment.remove(*to_replace[0]);
+            to_replace.clear();
+            requires_replace = true;
         }
-
-        // If this slot has no replacement candidates (presumably because there
-        // is actually room), remove this vector so as to not confuse the caller.
-        if (to_replace.back().empty())
-            to_replace.pop_back();
     }
 
     return ret;
 }
 
-equipment_slot player_equip_set::find_slot_to_equip_item(equipment_slot base_slot,
-                                                         vector<item_def*>& to_replace,
-                                                         FixedVector<int, NUM_EQUIP_SLOTS>& slot_count,
-                                                         bool ignore_curses) const
+equipment_slot player_equip_set::find_free_compatible_slot(equipment_slot base_slot) const
 {
     const vector<equipment_slot>& slots = get_alternate_slots(base_slot);
     for (equipment_slot slot : slots)
     {
         // Skip slots the player doesn't have at all.
-        if (slot_count[slot] == 0)
+        if (num_slots[slot] == 0)
             continue;
 
         // Otherwise, iterate all slots of this type and see if one is free.
@@ -666,19 +720,25 @@ equipment_slot player_equip_set::find_slot_to_equip_item(equipment_slot base_slo
 
         // The player has more slots than they're currently using, so this one
         // should be fine.
-        if (count < slot_count[slot])
+        if (count < num_slots[slot])
             return slot;
     }
+    return SLOT_UNUSED;
+}
 
-    // At this point, we've checked all slots without finding empty ones, so
-    // start gathering up items that are taking up those slots, if they exist.
+void player_equip_set::find_removable_items_for_slot(equipment_slot base_slot,
+                                                 vector<item_def*>& to_replace,
+                                                 bool ignore_curses,
+                                                 bool quiet) const
+{
     item_def* cursed_item = nullptr;
     bool found_item = false;
+    const vector<equipment_slot>& slots = get_alternate_slots(base_slot);
     for (equipment_slot slot : slots)
     {
         for (const player_equip_entry& entry : items)
         {
-            if (entry.slot == slot && !entry.melded)
+            if (entry.slot == slot)
             {
                 item_def& item = entry.get_item();
 
@@ -713,12 +773,8 @@ equipment_slot player_equip_set::find_slot_to_equip_item(equipment_slot base_slo
         }
     }
 
-    if (!found_item && cursed_item)
+    if (!quiet && !found_item && cursed_item)
         mprf(MSGCH_PROMPT, "%s is stuck to your body!", cursed_item->name(DESC_YOUR).c_str());
-
-    // We didn't find a useable slot, but may have added removal possibilities
-    // to to_replace
-    return SLOT_UNUSED;
 }
 
 /**
@@ -738,7 +794,7 @@ equipment_slot player_equip_set::find_slot_to_equip_item(equipment_slot base_slo
  *         that means that there are *no* valid candidates to remove, despite
  *         needing to do so (almost certainly because every slot of the needed
  *         type contains a cursed item.)
-  */
+ */
 int player_equip_set::needs_chain_removal(const item_def& item,
                                           vector<item_def*>& to_replace,
                                           bool cursed_okay)
@@ -792,17 +848,19 @@ static bool _forced_removal_goodness(player_equip_entry* entry1, player_equip_en
     else if (is_artefact(item2) && artefact_property(item2, ARTP_FRAGILE))
         return true;
     else if (is_artefact(item1) && (artefact_property(item1, ARTP_CONTAM)
-                                    || artefact_property(item1, ARTP_DRAIN)))
+                                    || artefact_property(item1, ARTP_DRAIN)
+                                    || artefact_property(item1, ARTP_BANE)))
     {
         return false;
     }
     else if (is_artefact(item2) && (artefact_property(item2, ARTP_CONTAM)
-                                    || artefact_property(item2, ARTP_DRAIN)))
+                                    || artefact_property(item2, ARTP_DRAIN)
+                                    || artefact_property(item2, ARTP_BANE)))
     {
         return true;
     }
 
-    return true;
+    return false;
 }
 
 /**
@@ -819,11 +877,16 @@ static bool _forced_removal_goodness(player_equip_entry* entry1, player_equip_en
  *                           be able to fit, rather than only looking at slots
  *                           whose capacity has changed since the last call to
  *                           ::update()
+ * @param is_save_cleanup    Whether this is being done for save cleanup
+ *                           purposes (ie: to scan and remove 'impossible'
+ *                           items) and thus should allow for items to remain in
+ *                           slots granted by melded items.
  *
  * @return A vector of references to all items that must be removed for the
  *         player's current state to become valid again.
  */
-vector<item_def*> player_equip_set::get_forced_removal_list(bool force_full_check)
+vector<item_def*> player_equip_set::get_forced_removal_list(bool force_full_check,
+                                                            bool is_save_cleanup)
 {
     vector<item_def*> to_remove;
 
@@ -831,7 +894,10 @@ vector<item_def*> player_equip_set::get_forced_removal_list(bool force_full_chec
     // lose any items for that reason.
     FixedVector<int, NUM_EQUIP_SLOTS> new_num_slots;
     for (int i = SLOT_UNUSED; i < NUM_EQUIP_SLOTS; ++i)
-        new_num_slots[i] = get_player_equip_slot_count(static_cast<equipment_slot>(i));
+    {
+        new_num_slots[i] = get_player_equip_slot_count(static_cast<equipment_slot>(i),
+                                                       nullptr, is_save_cleanup);
+    }
 
     for (int i = SLOT_UNUSED; i < NUM_EQUIP_SLOTS; ++i)
     {
@@ -1037,18 +1103,52 @@ void player_equip_set::meld_equipment(int slots, bool skip_effects)
         }
     }
 
+    handle_melding(was_melded, skip_effects);
+}
+
+void player_equip_set::meld_equipment(vector<item_def*> to_meld, bool skip_effects)
+{
+    for (player_equip_entry& entry : items)
+    {
+        for (item_def* meld_item : to_meld)
+        {
+            if (meld_item->link != entry.item)
+                continue;
+
+            item_def* item = &entry.get_item();
+            entry.melded = true;
+
+            // If this is an item occupying multiple slots, find all the other
+            // entries and meld them as well.
+            if (get_all_item_slots(*item).size() > 1)
+            {
+                for (player_equip_entry& overflow : items)
+                {
+                    if (overflow.item == entry.item)
+                        overflow.melded = true;
+                }
+            }
+        }
+
+    }
+
+    handle_melding(to_meld, skip_effects);
+}
+
+void player_equip_set::handle_melding(vector<item_def*>& to_meld, bool skip_effects)
+{
     // If melding these items will remove slots that contain other items, meld
     // those too (to keep from constantly popping them off during certain
     // transformations).
-    int num_melded = was_melded.size();
-    handle_chain_removal(was_melded, false);
-    if ((int)was_melded.size() > num_melded)
+    int num_melded = to_meld.size();
+    handle_chain_removal(to_meld, false);
+    if ((int)to_meld.size() > num_melded)
     {
-        for (size_t i = num_melded; i < was_melded.size(); ++i)
+        for (size_t i = num_melded; i < to_meld.size(); ++i)
         {
             for (player_equip_entry& entry : items)
             {
-                if (entry.item == was_melded[i]->link)
+                if (entry.item == to_meld[i]->link)
                 {
                     entry.melded = true;
                     if (entry.is_overflow)
@@ -1064,7 +1164,7 @@ void player_equip_set::meld_equipment(int slots, bool skip_effects)
         }
     }
 
-    if (was_melded.empty())
+    if (to_meld.empty())
         return;
 
     if (skip_effects)
@@ -1072,7 +1172,7 @@ void player_equip_set::meld_equipment(int slots, bool skip_effects)
 
     // Print a message.
     vector<string> meld_msg;
-    for (item_def* meld_item : was_melded)
+    for (item_def* meld_item : to_meld)
         meld_msg.emplace_back(meld_item->name(DESC_PLAIN));
 
     mprf("Your %s meld%s into your body.",
@@ -1082,7 +1182,7 @@ void player_equip_set::meld_equipment(int slots, bool skip_effects)
     update();
 
     // Now, simultaneously do unequip effects for all melded items.
-    for (item_def* meld_item : was_melded)
+    for (item_def* meld_item : to_meld)
         unequip_effect(meld_item->link, true, true);
 }
 
@@ -1331,16 +1431,47 @@ player_equip_entry& player_equip_set::get_entry_for(const item_def& item)
 }
 
 /**
- * Checks whether all of a given slot type is filled with unmelded items.
+ * Checks whether the slot that mutations apply to is covered.
  * (This is largely used to check if claws are covered by gloves, talons
  * covered by boots, etc.)
  */
-bool player_equip_set::slot_is_fully_covered(equipment_slot slot) const
+bool player_equip_set::innate_slot_is_covered(equipment_slot slot) const
 {
-    if (num_slots[slot] == 0 || slot_is_melded(slot))
+    int innate_slots = get_player_equip_slot_count(slot, nullptr, false, false);
+    if (innate_slots == 0 || slot_is_melded(slot))
         return false;
 
     return (int)get_slot_entries(slot).size() == num_slots[slot];
+}
+
+/**
+ * Changes the second slot of any equipped two-hander to a specified slot type.
+ * (Used to handle two-handers when entering/leaving Fortress Crab form.)
+ *
+ * Note: Does not verify that the player has a slot of the specified type. The
+ *       caller is responsible for only do so when appropriate.
+ */
+void player_equip_set::shift_twohander_to_slot(equipment_slot new_slot)
+{
+    item_def* wpn = get_first_slot_item(SLOT_WEAPON);
+    if (!wpn || you.hands_reqd(*wpn) != HANDS_TWO)
+        return;
+
+    // If being told to move to offhand, respect Coglin's special offhand slot.
+    if (new_slot == SLOT_OFFHAND
+        && num_slots[SLOT_OFFHAND] == 0 && num_slots[SLOT_WEAPON_OR_OFFHAND] > 0)
+    {
+        new_slot = SLOT_WEAPON_OR_OFFHAND;
+    }
+
+    for (player_equip_entry& entry : items)
+    {
+        if (entry.item != wpn->link)
+            continue;
+
+        if (entry.slot != SLOT_WEAPON)
+            entry.slot = new_slot;
+    }
 }
 
 /**
@@ -1371,7 +1502,7 @@ void autoequip_item(item_def& item)
 {
     ASSERT(in_inventory(item));
 
-    vector<vector<item_def*>> dummy;
+    bool dummy;
     equipment_slot slot = you.equipment.find_slot_to_equip_item(item, dummy);
     if (slot != SLOT_UNUSED)
         equip_item(slot, item.link, false, true);
@@ -1382,7 +1513,7 @@ void autoequip_item(item_def& item)
 void equip_item(equipment_slot slot, int item_slot, bool msg, bool skip_effects)
 {
     ASSERT_RANGE(slot, SLOT_WEAPON, NUM_EQUIP_SLOTS);
-    ASSERT_RANGE(item_slot, 0, ENDOFPACK);
+    ASSERT_RANGE(item_slot, 0, MAX_GEAR);
 
     item_def& item = you.inv[item_slot];
 
@@ -1576,6 +1707,13 @@ void equip_artefact_effect(item_def &item, bool *show_msgs, bool unmeld)
     if (proprt[ARTP_CONTAM] && msg && !unmeld)
         mpr("You feel a build-up of mutagenic energy.");
 
+    if (proprt[ARTP_BANE] && !unmeld)
+    {
+        if (msg)
+            mpr("You feel a malign power afflict you.");
+        add_bane(NUM_BANES, "Equipping an artefact");
+    }
+
     if (proprt[ARTP_RAMPAGING] && msg && !unmeld
         && !you.has_mutation(MUT_ROLLPAGE))
     {
@@ -1635,7 +1773,7 @@ void unequip_artefact_effect(item_def &item,  bool *show_msgs, bool meld)
     if (proprt[ARTP_CONTAM] && !meld)
     {
         mpr("Mutagenic energies flood into your body!");
-        contaminate_player(7000, true);
+        contaminate_player(1200, true);
     }
 
     if (proprt[ARTP_RAMPAGING] && msg && !meld
@@ -2259,7 +2397,7 @@ static void _remove_amulet_of_faith(item_def &item)
     if (you_worship(GOD_RU))
     {
         // next sacrifice is going to be delaaaayed.
-        ASSERT(you.piety < piety_breakpoint(5));
+        ASSERT(you.raw_piety < piety_breakpoint(5));
 #ifdef DEBUG_DIAGNOSTICS
         const int cur_delay = you.props[RU_SACRIFICE_DELAY_KEY].get_int();
 #endif
@@ -2271,11 +2409,19 @@ static void _remove_amulet_of_faith(item_def &item)
 
     simple_god_message(" seems less interested in you.");
 
-    const int piety_loss = div_rand_round(you.piety, 3);
+    const int piety_loss = div_rand_round(you.raw_piety, 3);
     // Piety penalty for removing the Amulet of Faith.
     mprf(MSGCH_GOD, "You feel less pious.");
     dprf("%s: piety drain: %d", item.name(DESC_PLAIN).c_str(), piety_loss);
     lose_piety(piety_loss);
+}
+
+static void _change_wildshape_status()
+{
+    calc_hp();
+    calc_mp();
+    redraw_screen();
+    update_screen();
 }
 
 static void _handle_regen_item_equip(const item_def& item)
@@ -2304,7 +2450,8 @@ static void _handle_regen_item_equip(const item_def& item)
         return;
     }
 #endif
-    if (regen_mp && !regen_hp && !player_regenerates_mp())
+    if (regen_mp && !regen_hp && !player_regenerates_mp()
+        && !item.is_type(OBJ_JEWELLERY, AMU_ALCHEMY))
     {
         mprf("The %s feel%s cold and inert.", item_name.c_str(),
              plural ? "" : "s");
@@ -2338,6 +2485,11 @@ bool acrobat_boost_active()
            && (!you.is_constricted());
 }
 
+bool parrying_boost_active()
+{
+    return player_parrying() && you.duration[DUR_PARRYING];
+}
+
 static void _equip_amulet_of_reflection()
 {
     you.redraw_armour_class = true;
@@ -2348,14 +2500,6 @@ static void _equip_jewellery_effect(item_def &item, bool unmeld)
 {
     switch (item.sub_type)
     {
-    case RING_FIRE:
-        mpr("You feel more attuned to fire.");
-        break;
-
-    case RING_ICE:
-        mpr("You feel more attuned to ice.");
-        break;
-
     case RING_SEE_INVISIBLE:
         autotoggle_autopickup(false);
         break;
@@ -2430,6 +2574,19 @@ static void _equip_jewellery_effect(item_def &item, bool unmeld)
         _equip_amulet_of_reflection();
         break;
 
+    case AMU_WILDSHAPE:
+        mpr("You feel a wild power.");
+        _change_wildshape_status();
+        break;
+
+    case AMU_ALCHEMY:
+        mpr("You feel a deeper understanding of alchemy.");
+        break;
+
+    case AMU_DISSIPATION:
+        mpr("You feel as though your troubles will go away faster.");
+        break;
+
     case AMU_GUARDIAN_SPIRIT:
         _spirit_shield_message(unmeld);
         break;
@@ -2446,8 +2603,6 @@ static void _unequip_jewellery_effect(item_def &item, bool meld)
     // The ring/amulet must already be removed from you.equipment at this point.
     switch (item.sub_type)
     {
-    case RING_FIRE:
-    case RING_ICE:
     case RING_POSITIVE_ENERGY:
     case RING_POISON_RESISTANCE:
     case RING_PROTECTION_FROM_COLD:
@@ -2505,6 +2660,10 @@ static void _unequip_jewellery_effect(item_def &item, bool meld)
             _remove_amulet_of_faith(item);
         break;
 
+    case AMU_WILDSHAPE:
+        _change_wildshape_status();
+        break;
+
 #if TAG_MAJOR_VERSION == 34
     case AMU_GUARDIAN_SPIRIT:
         if (you.species == SP_DEEP_DWARF && player_regenerates_mp())
@@ -2525,8 +2684,8 @@ static void _mark_unseen_monsters()
     {
         if (testbits((*mi)->flags, MF_WAS_IN_VIEW) && !you.can_see(**mi))
         {
-            (*mi)->went_unseen_this_turn = true;
-            (*mi)->unseen_pos = (*mi)->pos();
+            (*mi)->revealed_this_turn = true;
+            (*mi)->revealed_at_pos = (*mi)->pos();
         }
 
     }
@@ -2561,6 +2720,6 @@ void unwield_distortion(bool brand)
     else
     {
         mpr("Space warps into you!");
-        contaminate_player(random2avg(18000, 3), true);
+        contaminate_player(random2avg(3000, 3), true);
     }
 }

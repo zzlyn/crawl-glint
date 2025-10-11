@@ -24,6 +24,7 @@
 #include "macro.h"
 #include "message.h"
 #include "mon-act.h"
+#include "mon-abil.h"
 #include "mon-death.h"
 #include "mon-movetarget.h"
 #include "mon-speak.h"
@@ -317,12 +318,16 @@ void handle_behaviour(monster* mon)
     // Handle leashing monster behavior: return to creator if non-adjacent,
     // otherwise try to pick a monster in reach to attack.
     const int leash_range = mons_leash_range(mon->type);
+    bool should_return = false;
     if (owner && leash_range > 0)
     {
         if (grid_distance(owner->pos(), mon->pos()) > leash_range)
         {
             mon->foe = MHITYOU;
+            mon->foe = owner->mindex();
+            mon->target = owner->pos();
             mon->behaviour = BEH_SEEK;
+            should_return = true;
         }
         else
         {
@@ -412,18 +417,20 @@ void handle_behaviour(monster* mon)
     }
 
     // Unfriendly monsters fighting other monsters will usually
-    // target the player.
-    if (!isFriendly && !isNeutral
+    // target the player (unless it is a leashing monster returning to its owner).
+    if (!isFriendly && !isNeutral && !should_return
         && !mons_is_avatar(mon->type)
         && mon->foe != MHITYOU && mon->foe != MHITNOT
         && proxPlayer && !mon->berserk_or_frenzied()
+        && !mon->has_ench(ENCH_DAZED)
         && !one_chance_in(3))
     {
         mon->foe = MHITYOU;
     }
 
     // Validate current target again.
-    _mon_check_foe_invalid(mon);
+    if (!should_return)
+        _mon_check_foe_invalid(mon);
 
     if (mon->has_ench(ENCH_HAUNTING))
     {
@@ -499,7 +506,7 @@ void handle_behaviour(monster* mon)
                 {
                     new_beh = BEH_WANDER;
                 }
-                else
+                else if (!mon->has_ench(ENCH_DAZED))
                 {
                     new_foe = MHITYOU;
                     mon->target = you.pos();
@@ -925,7 +932,8 @@ void set_nearest_monster_foe(monster* mon, bool also_use_player_vision)
     if (mon->good_neutral()
         || mon->behaviour == BEH_WITHDRAW
         || mons_is_avatar(mon->type)
-        || mon->has_ench(ENCH_HAUNTING))
+        || mon->has_ench(ENCH_HAUNTING)
+        || mon->has_ench(ENCH_DAZED))
     {
         return;
     }
@@ -983,6 +991,13 @@ void behaviour_event(monster* mon, mon_event_type event, const actor *src,
     if (!mon->alive())
         return;
 
+    // Tesseracts react to nothing at all unless activated.
+    if (mon->type == MONS_BOUNDLESS_TESSERACT
+        && !you.props.exists(TESSERACT_SPAWN_COUNTER_KEY))
+    {
+        return;
+    }
+
     ASSERT(!crawl_state.game_is_arena() || src != &you);
     ASSERT_IN_BOUNDS_OR_ORIGIN(src_pos);
     if (mons_is_projectile(mon->type))
@@ -1012,6 +1027,10 @@ void behaviour_event(monster* mon, mon_event_type event, const actor *src,
     switch (event)
     {
     case ME_DISTURB:
+        // Dazed monsters don't get alerted by noise.
+        if (mon->has_ench(ENCH_DAZED))
+            break;
+
 #ifdef DEBUG_NOISE_PROPAGATION
         dprf("Disturbing %s", mon->name(DESC_A, true).c_str());
 #endif
@@ -1036,9 +1055,6 @@ void behaviour_event(monster* mon, mon_event_type event, const actor *src,
 
     case ME_WHACK:
     case ME_ANNOY:
-        if (mon->has_ench(ENCH_GOLD_LUST))
-            mon->del_ench(ENCH_GOLD_LUST);
-
         // Will turn monster against <src>.
 
         // Allies who are retreating or who have been ordered not to attack
@@ -1101,6 +1117,7 @@ void behaviour_event(monster* mon, mon_event_type event, const actor *src,
         if (src == &you && mon->angered_by_attacks())
         {
             if (mon->attitude == ATT_FRIENDLY && mon->is_summoned()
+                && mon->type != MONS_ELDRITCH_TENTACLE
                 && !mon->is_child_monster() && !mons_is_tentacle_segment(mon->type))
             {
                 summon_dismissal_fineff::schedule(mon);
@@ -1132,6 +1149,22 @@ void behaviour_event(monster* mon, mon_event_type event, const actor *src,
         if (mon->behaviour != BEH_SLEEP && mon->has_ench(ENCH_DEEP_SLEEP))
             mon->del_ench(ENCH_DEEP_SLEEP, true, false);
 
+        if (mon->has_ench(ENCH_DAZED))
+        {
+            // Protection from being immediately snapped out of a
+            // freshly-applied daze effect.
+            if (you.elapsed_time > mon->get_ench(ENCH_DAZED).degree)
+            {
+                if (you.can_see(*mon))
+                {
+                    mprf("%s snaps out of %s daze.",
+                            mon->name(DESC_THE).c_str(),
+                            mon->pronoun(PRONOUN_POSSESSIVE).c_str());
+                }
+                mon->del_ench(ENCH_DAZED, true);
+            }
+        }
+
         // Now set target so that monster can whack back (once) at an
         // invisible foe.
         if (event == ME_WHACK)
@@ -1148,6 +1181,9 @@ void behaviour_event(monster* mon, mon_event_type event, const actor *src,
         break;
 
     case ME_ALERT:
+        // Dazed monsters don't get alerted by noise.
+        if (mon->has_ench(ENCH_DAZED))
+            break;
 #ifdef DEBUG_NOISE_PROPAGATION
         dprf("Alerting %s", mon->name(DESC_A, true).c_str());
 #endif

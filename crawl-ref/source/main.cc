@@ -652,7 +652,7 @@ static void _djinn_announce_spells()
     mprf("You begin with %s%s%s.", equip_str.c_str(), spacer.c_str(), spell_str.c_str());
 
     take_note(Note(NOTE_MESSAGE, 0, 0, you.your_name + " set off with " +
-                                       equip_str + spell_str + "."));
+                                       equip_str + spacer + spell_str + "."));
 }
 
 // Announce to the message log and make a note of the player's starting items,
@@ -1119,7 +1119,7 @@ static void _input()
     if (you.duration[DUR_VEXED])
         do_vexed_attack(you);
 
-    if (you.cannot_act() || you.duration[DUR_VEXED])
+    if (you.cannot_act() || you.duration[DUR_VEXED] || you.duration[DUR_DAZED])
     {
         if (crawl_state.repeat_cmd != CMD_WIZARD)
         {
@@ -1163,15 +1163,12 @@ static void _input()
 #endif
 
         // Some delays reset you.time_taken.
-        if (!time_is_frozen && (you.time_taken || you.turn_is_over)
-            && you.berserk())
+        if (!time_is_frozen && (you.time_taken || you.turn_is_over))
         {
-            _do_berserk_no_combat_penalty();
+            if (you.berserk())
+                _do_berserk_no_combat_penalty();
+            world_reacts();
         }
-
-        // Call this even if we took no time - we might have been banished
-        // by an unwield effect.
-        world_reacts();
 
         if (!you_are_delayed())
             update_can_currently_train();
@@ -1441,9 +1438,9 @@ static bool _prompt_unique_pan_rune(dungeon_feature_type ygrd)
     item_def* rune = find_floor_item(OBJ_RUNES);
     if (rune && item_is_unique_rune(*rune))
     {
-        return yes_or_no("A rune of Zot still resides in this realm, "
-                         "and once you leave you can never return. "
-                         "Are you sure you want to leave?");
+        return confirm_prompt("yes", "A rune of Zot still resides in this realm, "
+                                     "and once you leave you can never return. "
+                                     "Are you sure you want to leave?");
     }
     return true;
 }
@@ -1491,6 +1488,17 @@ static bool _prompt_stairs(dungeon_feature_type ygrd, bool down, bool shaft)
         // "unsafe", as often you bail at single-digit hp and a wasted turn to
         // an overeager prompt cancellation might be nasty.
         if (!yesno("Are you sure you want to leave this ziggurat?", false, 'n'))
+        {
+            canned_msg(MSG_OK);
+            return false;
+        }
+    }
+
+    // Exiting Troves early.
+    if (ygrd == DNGN_EXIT_TROVE
+        && you.depth == brdepth[BRANCH_TROVE])
+    {
+        if (!yesno("Are you sure you want to leave this trove?", false, 'n'))
         {
             canned_msg(MSG_OK);
             return false;
@@ -1570,9 +1578,9 @@ static bool _prompt_stairs(dungeon_feature_type ygrd, bool down, bool shaft)
 
     if (down && ygrd == DNGN_ENTER_VAULTS && !runes_in_pack())
     {
-        if (!yes_or_no("You cannot leave the Vaults without holding a Rune of "
-                       "Zot, and the runes within are jealously guarded."
-                       " Continue?"))
+        if (!confirm_prompt("yes", "You cannot leave the Vaults without holding a Rune of "
+                                   "Zot, and the runes within are jealously guarded."
+                                   " Continue?"))
         {
             canned_msg(MSG_OK);
             return false;
@@ -2318,15 +2326,7 @@ void process_command(command_type cmd, command_type prev_cmd)
     case CMD_INTERLEVEL_TRAVEL: do_interlevel_travel();      break;
     case CMD_ANNOTATE_LEVEL:    do_annotate();               break;
     case CMD_EXPLORE:           do_explore_cmd();            break;
-
-        // Mouse commands.
-    case CMD_MOUSE_MOVE:
-    {
-        const coord_def dest = crawl_view.screen2grid(crawl_view.mousep);
-        if (in_bounds(dest))
-            terse_describe_square(dest);
-        break;
-    }
+    case CMD_EXPLORE_NO_REST:   do_explore_cmd(true);        break;
 
     case CMD_MOUSE_CLICK:
     {
@@ -2417,7 +2417,7 @@ void process_command(command_type cmd, command_type prev_cmd)
     {
         // TODO: msg whether this will start a new game? not very important
         if (crawl_state.disables[DIS_CONFIRMATIONS]
-            || yes_or_no("Are you sure you want to abandon this character%s?",
+            || confirm_prompt("quit", "Are you sure you want to abandon this character%s?",
                 Options.newgame_after_quit ? "" : // hard to predict this case
                 (crawl_should_restart(game_exit::quit)
                                             ? " and return to the main menu"
@@ -2440,7 +2440,7 @@ void process_command(command_type cmd, command_type prev_cmd)
         break;
 
     case CMD_TOGGLE_KEYBOARD:
-        jni_keyboard_control(true);
+        jni_keyboard_control(2);
         break;
 #endif
 
@@ -2471,6 +2471,7 @@ static void _prep_input()
     you.shield_blocks = 0;              // no blocks this round
 
     you.redraw_status_lights = true;
+    you.redraw_title = true;
     if (you.running == 0)
     {
         you.quiver_action.set_needs_redraw();
@@ -2481,7 +2482,6 @@ static void _prep_input()
 
     viewwindow();
     update_screen(); // ???
-    maybe_update_stashes();
     if (check_for_interesting_features() && you.running.is_explore())
         stop_running();
 
@@ -2494,23 +2494,6 @@ static void _prep_input()
             mprf(MSGCH_GOD, "You have a vision of multiple gates.");
 
         you.seen_portals = 0;
-    }
-}
-
-static void _check_banished()
-{
-    if (you.banished)
-    {
-        you.banished = false;
-        ASSERT(brdepth[BRANCH_ABYSS] != -1);
-        if (!player_in_branch(BRANCH_ABYSS))
-            mprf(MSGCH_BANISHMENT, "You are cast into the Abyss!");
-        else if (you.depth < brdepth[BRANCH_ABYSS])
-            mprf(MSGCH_BANISHMENT, "You are cast deeper into the Abyss!");
-        else
-            mprf(MSGCH_BANISHMENT, "The Abyss bends around you!");
-        // these are included in default force_more_message
-        banished(you.banished_by, you.banished_power);
     }
 }
 
@@ -2581,9 +2564,6 @@ void world_reacts()
         update_screen();
     }
 
-    // prevent monsters wandering into view and picking up an item before
-    // our next prep_input
-    maybe_update_stashes();
     update_monsters_in_view();
 
     reset_show_terrain();
@@ -2608,9 +2588,8 @@ void world_reacts()
     }
 #endif
 
-    _check_banished();
+    check_banished();
     _check_sanctuary();
-    _check_trapped();
     check_spectral_weapon(you);
 
     run_environment_effects();
@@ -2626,7 +2605,7 @@ void world_reacts()
     // (mostly by exploding)
     fire_final_effects();
 
-    _check_banished();
+    check_banished();
 
     ASSERT(you.time_taken >= 0);
     you.elapsed_time += you.time_taken;
@@ -2662,10 +2641,13 @@ void world_reacts()
 
     add_auto_excludes();
 
+    _check_trapped();
+
     viewwindow();
     update_screen();
 
-    if (you.cannot_act() && any_messages()
+    if ((you.cannot_act() || you.duration[DUR_DAZED] || you.duration[DUR_VEXED])
+        && any_messages()
         && crawl_state.repeat_cmd != CMD_WIZARD)
     {
         more();

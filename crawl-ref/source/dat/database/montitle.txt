@@ -43,6 +43,10 @@ Boris title
 
 Boris, Master of Life and Death
 %%%%
+Cassandra title
+
+Cassandra the Doomed Oracle
+%%%%
 Cerebov title
 
 Cerebov, Demon Lord of Fire and Steel
@@ -271,10 +275,6 @@ Polyphemus title
 
 Polyphemus the Watchful Shepherd
 %%%%
-Psyche title
-
-Psyche the Insane Magess
-%%%%
 Robin title
 
 Robin of the Strong Arm
@@ -306,6 +306,10 @@ Sojobo, Queen of Tengu
 Sonja title
 
 Sonja, the Graceful Assassin
+%%%%
+Sprozz title
+
+Sprozz, Inventive Apiarist
 %%%%
 Terence title
 

@@ -303,26 +303,30 @@ static int l_item_do_subtype(lua_State *ls)
         return 1;
     }
 
-    const char *s = nullptr;
-    string saved;
+    bool armour_slots = true;
+    if (lua_isboolean(ls, 1))
+        armour_slots = lua_toboolean(ls, 1);
 
-    // Special-case OBJ_ARMOUR behavior to maintain compatibility with
-    // existing scripts.
-    if (item->base_type == OBJ_ARMOUR)
+    if (item->base_type == OBJ_WEAPONS || item->base_type == OBJ_ARMOUR
+                                       || item->is_identified())
     {
-        equipment_slot slot = get_armour_slot(*item);
-        s = (slot == SLOT_BODY_ARMOUR ? "body"
-                                      : lowercase_string(equip_slot_name(slot)).c_str());
-    }
-    else if (item->is_identified() || item->base_type == OBJ_WEAPONS)
-    {
-        // must keep around the string until we call lua_pushstring
-        saved = sub_type_string(*item);
-        s = saved.c_str();
-    }
+        string s;
 
-    if (s)
-        lua_pushstring(ls, s);
+        // Special-case OBJ_ARMOUR behavior to maintain compatibility with
+        // existing scripts.
+        if (armour_slots && item->base_type == OBJ_ARMOUR)
+        {
+            equipment_slot slot = get_armour_slot(*item);
+            if (slot == SLOT_BODY_ARMOUR)
+                s = "body";
+            else
+                s = lowercase_string(equip_slot_name(slot));
+        }
+        else
+            s = sub_type_string(*item);
+
+        lua_pushstring(ls, s.c_str());
+    }
     else
         lua_pushnil(ls);
 
@@ -330,8 +334,9 @@ static int l_item_do_subtype(lua_State *ls)
 }
 
 /*** What is the subtype?
+ * @tparam[opt=true] boolean armour_slots return slot, not subtype, for armour
  * @treturn string|nil the item's subtype, if any
- * @function subtype
+  * @function subtype
  */
 IDEFN(subtype, do_subtype)
 
@@ -402,9 +407,9 @@ IDEF(cursed)
 static string _item_name(lua_State *ls, item_def* item)
 {
     description_level_type ndesc = DESC_PLAIN;
-    if (lua_isstring(ls, 1))
+    if (lua_type(ls, 1) == LUA_TSTRING)
         ndesc = description_type_by_name(lua_tostring(ls, 1));
-    else if (lua_isnumber(ls, 1))
+    else if (lua_type(ls, 1) == LUA_TNUMBER)
         ndesc = static_cast<description_level_type>(luaL_safe_checkint(ls, 1));
     const bool terse = lua_toboolean(ls, 2);
     return item->name(ndesc, terse);
@@ -506,7 +511,7 @@ IDEF(quantity)
 IDEF(slot)
 {
     if (item && in_inventory(*item))
-        lua_pushnumber(ls, item->link);
+        lua_pushnumber(ls, letter_to_index(item->slot));
     else
         lua_pushnil(ls);
     return 1;
@@ -520,8 +525,8 @@ IDEF(ininventory)
     PLUARET(boolean, item && in_inventory(*item));
 }
 
-/*** The default slot type this item goes in.
- * @field equip_type int
+/*** Which equipment slot does this item use?
+ * @field equip_type string|nil nil if this item doesn't use an equipment slot
  */
 IDEF(equip_type)
 {
@@ -531,7 +536,7 @@ IDEF(equip_type)
     equipment_slot eq = get_item_slot(*item);
 
     if (eq != SLOT_UNUSED)
-        lua_pushnumber(ls, eq);
+        lua_pushstring(ls, lowercase_string(equip_slot_name(eq)).c_str());
     else
         lua_pushnil(ls);
     return 1;
@@ -569,7 +574,7 @@ IDEF(reach_range)
     if (!item || !item->defined())
         return 0;
 
-    reach_type rt = weapon_reach(*item);
+    int rt = weapon_reach(*item);
     lua_pushnumber(ls, rt);
     return 1;
 }
@@ -1019,6 +1024,19 @@ IDEF(description)
     return 1;
 }
 
+/*** Whether the current item is a piece of jewellery that the player already
+ *   has as many copies as they can benefit from.
+ * @field is_redundant string
+ */
+IDEF(redundant)
+{
+    if (!item || !item->defined())
+        return 0;
+
+    lua_pushboolean(ls, jewellery_is_redundant(*item));
+
+    return 1;
+}
 
 // DLUA-only functions
 static int l_item_do_pluses(lua_State *ls)
@@ -1240,7 +1258,7 @@ static int l_item_swap_slots(lua_State *ls)
         return 0;
     }
 
-    swap_inv_slots(slot1, slot2, verbose);
+    swap_inv_slots(you.inv[slot1], slot2, verbose);
 
     return 0;
 }
@@ -1754,6 +1772,7 @@ static ItemAccessor item_attrs[] =
     { "is_in_shop",        l_item_is_in_shop },
     { "inscription",       l_item_inscription },
     { "description",       l_item_description },
+    { "is_redundant",      l_item_redundant },
 
     // dlua only past this point
     { "pluses",            l_item_pluses },

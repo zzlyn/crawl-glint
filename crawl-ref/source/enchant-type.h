@@ -92,7 +92,7 @@ enum enchant_type
 #if TAG_MAJOR_VERSION == 34
     ENCH_FAKE_ABJURATION,
 #endif
-    ENCH_DAZED,          // Dazed - less chance of acting each turn.
+    ENCH_DAZED,          // Dazed - briefly unable to act unless harmed.
     ENCH_MUTE,           // Silenced.
     ENCH_BLIND,          // Blind (everything is invisible).
     ENCH_DUMB,           // Stupefied (paralysis by a different name).
@@ -163,7 +163,9 @@ enum enchant_type
     ENCH_NEUTRAL_BRIBED,
     ENCH_FRIENDLY_BRIBED,
     ENCH_CORROSION,
+#if TAG_MAJOR_VERSION == 34
     ENCH_GOLD_LUST,
+#endif
     ENCH_DRAINED,
     ENCH_REPEL_MISSILES,
 #if TAG_MAJOR_VERSION == 34
@@ -229,7 +231,7 @@ enum enchant_type
     ENCH_MISDIRECTED,
     ENCH_CHANGED_APPEARANCE,  // Visual change for player shadow during Shadowslip
     ENCH_SHADOWLESS,
-    ENCH_DOUBLED_HEALTH,
+    ENCH_DOUBLED_VIGOUR,
     ENCH_KINETIC_GRAPNEL,
     ENCH_TEMPERED,
     ENCH_HATCHING,
@@ -240,6 +242,13 @@ enum enchant_type
     ENCH_DROWSY,
     ENCH_VAMPIRE_THRALL,
     ENCH_PYRRHIC_RECOLLECTION,
+    ENCH_CLOCKWORK_BEE_CAST,
+    ENCH_PHALANX_BARRIER,
+    ENCH_FIGMENT,
+    ENCH_PARADOX_TOUCHED,
+    ENCH_WARDING,
+    ENCH_DIMINISHED_SPELLS,
+    ENCH_ORB_COOLDOWN,
     // Update enchant_names[] in mon-ench.cc when adding or removing
     // enchantments.
     NUM_ENCHANTMENTS

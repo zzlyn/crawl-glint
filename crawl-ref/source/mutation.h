@@ -8,7 +8,9 @@
 #include <string>
 #include <vector>
 
+#include "bane-type.h"
 #include "mutation-type.h"
+#include "transformation.h"
 #include "externs.h"
 
 using std::vector;
@@ -17,12 +19,8 @@ class formatted_string;
 
 #define EVOLUTION_MUTS_KEY "evolution_muts"
 
-enum class mutation_activity_type
-{
-    INACTIVE, // form-based mutations in most forms
-    PARTIAL,  // scales on statues
-    FULL,     // other mutations
-};
+#define HOARD_POTIONS_TIMER_KEY "hoard_potions_timer"
+#define HOARD_SCROLLS_TIMER_KEY "hoard_scrolls_timer"
 
 enum mutation_permanence_class
 {
@@ -50,13 +48,17 @@ bool mutate(mutation_type which_mutation, const string &reason,
             bool beneficial = false,
             mutation_permanence_class mutclass = MUTCLASS_NORMAL);
 
+bool _delete_single_mutation_level(mutation_type mutat,
+                                   const string &reason, bool transient);
+
 int mut_check_conflict(mutation_type mut, bool innate_only = false);
-mutation_activity_type mutation_activity_level(mutation_type mut);
+bool mut_is_compatible(mutation_type mut, bool base_only = false);
 
 void display_mutations();
 string describe_mutations(bool center_title);
 string terse_mutation_list();
 string get_mutation_desc(mutation_type mut);
+string get_mutation_tags(mutation_type mut);
 
 int get_mutation_cap(mutation_type mut);
 void validate_mutations(bool debug_msg=false);
@@ -81,14 +83,14 @@ void roll_demonspawn_mutations();
 
 bool perma_mutate(mutation_type which_mut, int how_much, const string &reason);
 bool temp_mutate(mutation_type which_mut, const string &reason);
-int temp_mutation_roll();
 bool temp_mutation_wanes();
+int temp_mutation_count();
 
 void check_demonic_guardian();
 void check_monster_detect();
-bool physiology_mutation_conflict(mutation_type mutat);
 int augmentation_amount();
 void reset_powered_by_death_duration();
+int protean_grace_amount();
 
 bool delete_all_temp_mutations(const string &reason);
 bool delete_temp_mutation();
@@ -96,3 +98,16 @@ bool delete_temp_mutation();
 tileidx_t get_mutation_tile(mutation_type mut);
 
 void set_evolution_mut_xp(bool malignant);
+
+const string bane_desc(bane_type bane);
+const string bane_name(bane_type mut, bool dbkey = false);
+int bane_base_duration(bane_type bane);
+bane_type bane_from_name(string name);
+bool add_bane(bane_type bane = NUM_BANES, string reason = "Doom",
+              int duration = 0, int mult = 100);
+void remove_bane(bane_type bane);
+int xl_to_remove_bane(bane_type bane, int mult = 100);
+
+bool skill_has_dilettante_penalty(skill_type skill);
+
+void maybe_apply_bane_to_monster(monster& mons);

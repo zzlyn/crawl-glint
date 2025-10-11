@@ -638,7 +638,7 @@ private:
     item_spec pick_item(item_spec_slot &slot);
     bool parse_corpse_spec(item_spec &result, string s);
     bool monster_corpse_is_valid(monster_type *, const string &name,
-                                 bool skeleton);
+                                 bool need_skeleton);
 
 private:
     vector<item_spec_slot> items;
@@ -665,6 +665,7 @@ public:
 
     int hd;
     int hp;
+    int exp;
     int summon_duration;
     int summon_type;
 
@@ -687,8 +688,8 @@ public:
           quantity(1), genweight(10),
           generate_awake(false), patrolling(false), band(false),
           colour(COLOUR_INHERIT), god(GOD_NO_GOD), god_gift(false), hd(0),
-          hp(0), summon_duration(0), summon_type(0), items(), monname(""),
-          non_actor_summoner(""), explicit_spells(false), spells(),
+          hp(0), exp(0), summon_duration(0), summon_type(0), items(),
+          monname(""), non_actor_summoner(""), explicit_spells(false), spells(),
           extra_monster_flags(), initial_shifter(RANDOM_MONSTER), props()
     {
     }
@@ -741,7 +742,7 @@ private:
     void get_zombie_type(string s, mons_spec &spec) const;
     mons_spec get_hydra_spec(const string &name) const;
     mons_spec get_slime_spec(const string &name) const;
-    mons_spec get_salt_spec(const string &name) const;
+    mons_spec get_shaped_spec(const string &name, monster_type type) const;
     mons_spec get_zombified_monster(const string &name,
                                     monster_type zomb) const;
     mons_spec_slot parse_mons_spec(string spec);

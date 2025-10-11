@@ -27,6 +27,7 @@
 #include "env.h"
 #include "exercise.h"
 #include "fight.h"
+#include "fineff.h"
 #include "god-abil.h"
 #include "god-conduct.h"
 #include "god-item.h"
@@ -58,6 +59,7 @@
 #include "spl-clouds.h"
 #include "spl-damage.h"
 #include "spl-monench.h" // FASTROOT_POWER_KEY
+#include "spl-summoning.h"
 #include "spl-util.h"
 #include "state.h"
 #include "stepdown.h"
@@ -78,9 +80,8 @@
 
 static bool _evoke_horn_of_geryon()
 {
-    if (stop_summoning_prompt(MR_NO_FLAGS, M_NO_FLAGS, "toot the horn"))
+    if (!player_summon_check(MONS_SIN_BEAST))
         return false;
-    // Fool! Geryon toots as he pleases!
 
     bool created = false;
 
@@ -163,12 +164,6 @@ int wand_power(spell_type wand_spell)
 
 void zap_wand(int slot, dist *_target)
 {
-    if (inv_count() < 1)
-    {
-        canned_msg(MSG_NOTHING_CARRIED); // why is this handled here??
-        return;
-    }
-
     if (!item_currently_evokable(slot == -1 ? nullptr : &you.inv[slot]))
         return;
 
@@ -224,7 +219,10 @@ void zap_wand(int slot, dist *_target)
 
     // Spend MP.
     if (mp_cost)
+    {
+        stardust_orb_trigger(mp_cost);
         finalize_mp_cost();
+    }
 
     // Take off a charge (unless gadgeteer procs)
     if ((you.wearing_ego(OBJ_GIZMOS, SPGIZMO_GADGETEER)
@@ -245,7 +243,7 @@ void zap_wand(int slot, dist *_target)
     }
 
     practise_evoking(1);
-    count_action(CACT_EVOKE, EVOC_WAND);
+    count_action(CACT_EVOKE, wand.sub_type, OBJ_WANDS);
     alert_nearby_monsters();
 
     you.turn_is_over = true;
@@ -266,7 +264,9 @@ string manual_skill_names(bool short_text)
 
 static bool _box_of_beasts()
 {
-    if (stop_summoning_prompt(MR_NO_FLAGS, M_NO_FLAGS, "open the box"))
+    // While some mutant beasts can fly, the game still refuses to place them
+    // on top of water (since they can't fly until facets are fully generated).
+    if (!player_summon_check(MONS_MUTANT_BEAST))
         return false;
 
     mpr("You open the lid...");
@@ -290,7 +290,7 @@ static bool _box_of_beasts()
     {
         // Failed to create monster for some reason
         mpr("...but nothing happens.");
-        return false;
+        return true;
     }
 
     mprf("...and %s %s out!",
@@ -390,12 +390,12 @@ static bool _spill_out_spiders()
 
 static bool _sack_of_spiders()
 {
-    if (stop_summoning_prompt(MR_NO_FLAGS, M_NO_FLAGS, "reach into the sack"))
+    if (!player_summon_check(MONS_REDBACK))
         return false;
 
     mpr("You reach into the sack...");
 
-    const bool made_mons = !you.allies_forbidden() && _spill_out_spiders();
+    const bool made_mons = _spill_out_spiders();
     if (made_mons)
         mpr("...and things crawl out!");
 
@@ -403,7 +403,7 @@ static bool _sack_of_spiders()
     if (!made_mons && !webbed)
     {
         mpr("...but nothing happens.");
-        return false;
+        return true;
     }
 
     if (!made_mons)
@@ -665,10 +665,20 @@ static spret _phantom_mirror(dist *target)
     }
 
     monster_info mi(victim);
+    habitat_type habitat = mons_habitat(*victim);
     monclass_flags_t mf = M_NO_FLAGS;
     if (mi.airborne())
         mf |= M_FLIES;
-    if (stop_summoning_prompt(mi.mresists, mf, "use the mirror"))
+
+    // XXX: Can't do this with player_summon_prompt since we're summoning a
+    //      monster who may have gear that lets them use different habitats
+    //      than their base type.
+    if (!you_can_see_habitable_spot_near(victim->pos(), habitat, 1))
+    {
+        mpr("There is no available space!");
+        return spret::abort;
+    }
+    if (stop_summoning_prompt(mi.mresists, mf))
         return spret::abort;
 
     monster* mon = clone_mons(victim, true, nullptr, ATT_FRIENDLY);
@@ -739,7 +749,7 @@ static coord_def _find_tremorstone_target(bool& see_targets)
 
     for (radius_iterator ri(you.pos(), 3, C_SQUARE, LOS_NO_TRANS, true); ri; ++ri)
     {
-        if (ri->distance_from(you.pos()) != 3 || cell_is_solid(*ri))
+        if (ri->distance_from(you.pos()) != 3 || cell_is_invalid_target(*ri))
             continue;
 
         if (num > 0)
@@ -768,7 +778,7 @@ static coord_def _find_tremorstone_target(bool& see_targets)
     for (radius_iterator ri(you.pos(), 2, C_SQUARE, LOS_NO_TRANS, true); ri; ++ri)
     {
         if (ri->distance_from(you.pos()) == 2
-            && !cell_is_solid(*ri)
+            && !cell_is_invalid_target(*ri)
             && one_chance_in(++ties))
         {
             target = *ri;
@@ -779,7 +789,7 @@ static coord_def _find_tremorstone_target(bool& see_targets)
         return target;
 
     for (adjacent_iterator ai(you.pos()); ai; ++ai)
-        if (!cell_is_solid(*ai) && one_chance_in(++ties))
+        if (!cell_is_invalid_target(*ai) && one_chance_in(++ties))
             target = *ai;
     return target;
 }
@@ -795,7 +805,7 @@ static coord_def _fuzz_tremorstone_target(coord_def center)
     coord_def chosen = center;
     int seen = 1;
     for (adjacent_iterator ai(center); ai; ++ai)
-        if (!cell_is_solid(*ai) && one_chance_in(++seen))
+        if (!cell_is_invalid_target(*ai) && one_chance_in(++seen))
             chosen = *ai;
     return chosen;
 }
@@ -966,32 +976,6 @@ static bool _gravitambourine(dist *target)
     return true;
 }
 
-static transformation _form_for_talisman(const item_def &talisman)
-{
-    if (you.using_talisman(talisman))
-        return transformation::none;
-    return form_for_talisman(talisman);
-}
-
-static bool _evoke_talisman(const item_def &talisman)
-{
-    const transformation trans = _form_for_talisman(talisman);
-    if (!check_transform_into(trans, false, &talisman))
-        return false;
-    if (!i_feel_safe(true) && !yesno("Still begin transforming?", true, 'n'))
-    {
-        canned_msg(MSG_OK);
-        return false;
-    }
-
-    count_action(CACT_FORM, (int)trans);
-    start_delay<TransformDelay>(trans, &talisman);
-    if (god_despises_item(talisman, you.religion))
-        excommunication();
-    you.turn_is_over = true;
-    return true;
-}
-
 /// Does the item only serve to produce summons or allies?
 static bool _evoke_ally_only(const item_def &item, bool ident)
 {
@@ -1035,15 +1019,14 @@ string cannot_evoke_item_reason(const item_def *item, bool temp, bool ident)
         return "";
     }
 
-    if (item->base_type == OBJ_TALISMANS)
+    if (item->is_type(OBJ_BAUBLES, BAUBLE_FLUX))
     {
-        const transformation trans = _form_for_talisman(*item);
-        const string form_unreason = cant_transform_reason(trans, false, temp);
+        if (you.form == transformation::flux && temp)
+            return "you are already filled with unstable energy.";
+
+        const string form_unreason = cant_transform_reason(transformation::flux, false, temp);
         if (!form_unreason.empty())
             return lowercase_first(form_unreason);
-
-        if (you.form != you.default_form)
-            return "you need to leave your temporary form first.";
         return "";
     }
 
@@ -1118,8 +1101,14 @@ bool evoke_item(item_def& item, dist *preselect)
         zap_wand(item.link, preselect);
         return true;
 
-    case OBJ_TALISMANS:
-        return _evoke_talisman(item);
+    case OBJ_BAUBLES:
+        mprf("You crush the flux bauble in your %s and feel its energy "
+            "flooding your body.", you.hand_name(false).c_str());
+        ASSERT(in_inventory(item));
+        dec_inv_item_quantity(item.link, 1);
+        transform(0, transformation::flux);
+        you.props[FLUX_ENERGY_KEY] = 45;
+        return true;
 
     case OBJ_MISCELLANY:
         ASSERT(in_inventory(item));
@@ -1301,7 +1290,7 @@ string target_evoke_desc(const monster_info& mi, const item_def& item)
     {
         spell = spell_in_wand(static_cast<wand_type>(item.sub_type));
         power = wand_power(spell);
-        range = spell_range(spell, power, false);
+        range = calc_spell_range(spell, power, false);
     }
     else if (item.base_type == OBJ_MISCELLANY
             && item.sub_type == MISC_PHIAL_OF_FLOODS)
@@ -1384,4 +1373,46 @@ string evoke_noise_string(const item_def& item)
     }
     else
         return "";
+}
+
+dice_def pyromania_damage(bool random, bool max)
+{
+    const int power = max ? 2700 : you.skill(SK_EVOCATIONS, 100);
+    if (random)
+        return zap_damage(ZAP_FIREBALL, 20 + div_rand_round(power, 25), false, true);
+    else
+        return zap_damage(ZAP_FIREBALL, 20 + power / 25, false, false);
+}
+
+int pyromania_trigger_chance(bool max)
+{
+    return 23 + (max ? 27 : you.skill(SK_EVOCATIONS, 1));
+}
+
+int mesmerism_orb_radius(bool max)
+{
+    const int skill = max ? 27 : you.skill(SK_EVOCATIONS);
+    return min(2 + skill / 7, 4);
+}
+
+int stardust_orb_max(bool max)
+{
+    const int skill = max ? 27 : you.skill(SK_EVOCATIONS);
+    return 3 + skill / 2;
+}
+
+int stardust_orb_power(int mp_spent, bool max_evo)
+{
+    const int skill = max_evo ? 108 : you.skill(SK_EVOCATIONS, 4);
+    int pow = (skill + 15) * (100 + (mp_spent * 25)) / 100;
+    return pow;
+}
+
+void stardust_orb_trigger(int mp_spent)
+{
+    if (!you.duration[DUR_STARDUST_COOLDOWN]
+        && you.wearing_ego(OBJ_ARMOUR, SPARM_STARDUST))
+    {
+        stardust_fineff::schedule(&you, stardust_orb_power(mp_spent), stardust_orb_max());
+    }
 }

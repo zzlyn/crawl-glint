@@ -11,6 +11,7 @@
 #include "cluautil.h"
 #include "command.h"
 #include "delay.h"
+#include "describe.h"
 #include "directn.h"
 #include "dlua.h"
 #include "end.h"
@@ -24,6 +25,7 @@
 #include "macro.h"
 #include "menu.h"
 #include "message.h"
+#include "mutation.h"
 #include "notes.h"
 #include "output.h"
 #include "perlin.h"
@@ -783,9 +785,9 @@ static int crawl_regex(lua_State *ls)
  * passed.
  * @tparam string s
  * @treturn boolean|nil
- * @function Regex:find
+ * @function Regex:matches
  */
-static int crawl_regex_find(lua_State *ls)
+static int crawl_regex_matches(lua_State *ls)
 {
     text_pattern **pattern =
             clua_get_userdata< text_pattern* >(ls, REGEX_METATABLE);
@@ -828,7 +830,7 @@ static int crawl_regex_equals(lua_State *ls)
 }
 static const luaL_reg crawl_regex_ops[] =
 {
-    { "matches",        crawl_regex_find },
+    { "matches",        crawl_regex_matches },
     { "equals",         crawl_regex_equals },
     { nullptr, nullptr }
 };
@@ -1476,6 +1478,27 @@ LUAFN(crawl_hints_type)
     return 1;
 }
 
+static int crawl_bane_name(lua_State *ls)
+{
+    const char *s = luaL_checkstring(ls, 1);
+    if (!s || !*s)
+        return 0;
+
+    lua_pushstring(ls, uppercase_first(bane_name(bane_from_name(s))).c_str());
+    return 1;
+}
+
+static int crawl_bane_desc(lua_State *ls)
+{
+    const char *s = luaL_checkstring(ls, 1);
+    if (!s || !*s)
+        return 0;
+
+    const bane_type bane = bane_from_name(s);
+    lua_pushstring(ls, bane_long_description(bane, true).c_str());
+    return 1;
+}
+
 static const struct luaL_reg crawl_clib[] =
 {
     { "mpr",                crawl_mpr },
@@ -1548,6 +1571,8 @@ static const struct luaL_reg crawl_clib[] =
     { "version",            crawl_version },
     { "weapon_check",       crawl_weapon_check},
     { "hints_type",         crawl_hints_type },
+    { "bane_name",          crawl_bane_name },
+    { "bane_description",   crawl_bane_desc },
     { nullptr, nullptr },
 };
 

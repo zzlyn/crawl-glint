@@ -120,8 +120,8 @@ enum monclass_flag_type : uint64_t
     /// An ancestor granted by Hepliaklqana
     M_ANCESTOR          = BIT(35),
 
-    /// Gets a special name, like the Hellbinder
-    M_ALWAYS_NAMED      = BIT(36),
+    // Was M_ALWAYS_NAMED and before that M_ALWAYS_CORPSE
+                       // BIT(36),
 
     /// prefer ranged attacks over melee
     M_PREFER_RANGED     = BIT(37),
@@ -155,7 +155,8 @@ enum monclass_flag_type : uint64_t
     /// derived undead can't be randomly generated
     M_NO_GEN_DERIVED    = BIT(47),
 
-                        //BIT(48), // was M_REQUIRE_BAND
+    /// Is a priest regardless of whether they have priest spells
+    M_PRIEST            = BIT(48),
 
                         //BIT(49), // was M_HYBRID
 
@@ -191,6 +192,9 @@ enum monclass_flag_type : uint64_t
 
     // monster is made of liquid and is immune to webs, nets, and constriction
     M_AMORPHOUS         = BIT(61),
+
+    /// monster is immune to damage from outside of melee range
+    M_WARDED            = BIT(62),
 };
 DEF_BITFIELD(monclass_flags_t, monclass_flag_type);
 
@@ -309,6 +313,9 @@ enum monster_flag_type : uint64_t
     // Despite being temporarily created, will not expire upon its creator's
     // death (eg: ball lightning)
     MF_PERSISTS           = BIT(43),
+
+    /// Is a priest regardless of whether they have priest spells
+    MF_PRIEST             = BIT(44),
 
 };
 DEF_BITFIELD(monster_flags_t, monster_flag_type);

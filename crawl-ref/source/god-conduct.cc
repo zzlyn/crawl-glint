@@ -96,7 +96,7 @@ COMPILE_CHECK(ARRAYSZ(conducts) == NUM_CONDUCTS);
 static void _handle_piety_penance(int piety_change, int piety_denom,
                                   int penance, conduct_type thing_done)
 {
-    const int old_piety = you.piety;
+    const int old_piety = you.raw_piety;
 #ifndef DEBUG_DIAGNOSTICS
     UNUSED(thing_done);
     UNUSED(conducts);
@@ -110,12 +110,11 @@ static void _handle_piety_penance(int piety_change, int piety_denom,
 
     // don't announce exploration piety unless you actually got a boost
     if ((piety_change || penance)
-        && thing_done != DID_EXPLORATION || old_piety != you.piety)
+        && thing_done != DID_EXPLORATION || old_piety != you.raw_piety)
     {
-
         dprf("conduct: %s; piety: %d (%+d/%d); penance: %d (%+d)",
              conducts[thing_done],
-             you.piety, piety_change, piety_denom,
+             you.piety(), piety_change, piety_denom,
              you.penance[you.religion], penance);
 
     }
@@ -1099,6 +1098,9 @@ string get_god_likes(god_type which_god)
     case GOD_ZIN:
         likes.emplace_back("you donate money");
         break;
+    case GOD_OKAWARU:
+        really_likes.emplace_back("you kill challenging foes");
+        break;
     default:
         break;
     }
@@ -1182,12 +1184,29 @@ void did_hurt_monster(const monster &victim, int damage_done,
         you.props[USKAYAW_NUM_MONSTERS_HURT].get_int() += 1;
         you.props[USKAYAW_MONSTER_HURT_VALUE].get_int() += value;
     }
-    else if (you_worship(GOD_BEOGH) && you.piety >= piety_breakpoint(2))
+    else if (you_worship(GOD_BEOGH) && you.piety() >= piety_breakpoint(2))
     {
         // Cap the damage we give points for by the target's max hp to reduce rat value
         int bonus = min(victim.hit_points, min(damage_done, victim.max_hit_points / 2));
         you.props[BEOGH_DAMAGE_DONE_KEY].get_int() += bonus;
     }
+}
+
+/**
+ * Will this god definitely be upset if you memorise spells?
+ *
+ * This is as opposed to a likelihood.
+ *
+ * @param spell the spell to be cast
+ * @param god   the god to check against
+ * @returns true if you will definitely lose piety/get penance/be excommunicated
+ */
+bool god_punishes_memorising_spells(god_type god)
+{
+    if (map_find(divine_peeves[god], DID_SPELL_MEMORISE))
+        return true;
+
+    return false;
 }
 
 /**

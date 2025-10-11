@@ -35,7 +35,6 @@
 #include "religion.h"
 #include "shout.h"
 #include "spl-clouds.h" // explode_blastmotes_at
-#include "spl-damage.h" // dazzle_target
 #include "spl-util.h"
 #include "state.h"
 #include "stringutil.h"
@@ -339,6 +338,14 @@ static const cloud_data clouds[] = {
       BEAM_BAT_CLOUD,
       { 4, 11, true },
     },
+    // CLOUD_RUST,
+    { "rust", nullptr,                            // terse, verbose name
+        BROWN,                                    // colour
+        { TILE_CLOUD_RUST, CTVARY_DUR },          // tile
+        BEAM_ACID,                                // beam_effect
+        { 2, 3, false },                          // base, random damage
+      },
+
 };
 COMPILE_CHECK(ARRAYSZ(clouds) == NUM_CLOUD_TYPES);
 
@@ -738,22 +745,10 @@ void swap_clouds(coord_def p1, coord_def p2)
     _los_cloud_changed(p2, env.cloud[p2].type, env.cloud[p1].type);
 }
 
-// Places a cloud with the given stats assuming one doesn't already
-// exist at that point.
-void check_place_cloud(cloud_type cl_type, const coord_def& p, int lifetime,
-                       const actor *agent, int spread_rate, int excl_rad)
-{
-    if (!in_bounds(p) || cloud_at(p))
-        return;
-
-    place_cloud(cl_type, p, lifetime, agent, spread_rate, excl_rad);
-}
-
 bool cloud_is_stronger(cloud_type ct, const cloud_struct& cloud)
 {
     return (is_harmless_cloud(cloud.type) && !is_opaque_cloud(cloud.type))
            || cloud.type == CLOUD_STEAM
-           || cloud.type == CLOUD_BLASTMOTES
            || ct == CLOUD_VORTEX; // soon gone
 }
 
@@ -771,27 +766,30 @@ bool cloud_is_stronger(cloud_type ct, const cloud_struct& cloud)
  *                    cloud.
  * @param do_conducts If true, apply any relevant god conducts for flame
  *                    placement.
+ *
+ * @return  Whether a cloud was actually placed at this location.
 */
-void place_cloud(cloud_type cl_type, const coord_def& ctarget, int cl_range,
+bool place_cloud(cloud_type cl_type, const coord_def& ctarget, int cl_range,
                  const actor *agent, int spread_rate, int excl_rad,
                  bool do_conducts)
 {
+    if (!in_bounds(ctarget) || cell_is_solid(ctarget))
+        return false;
+
     if (is_sanctuary(ctarget) && !is_harmless_cloud(cl_type))
-        return;
+        return false;
 
     if (cl_type == CLOUD_INK && !feat_is_water(env.grid(ctarget)))
-        return;
+        return false;
 
     if (env.level_state & LSTATE_STILL_WINDS
         && cl_type != CLOUD_VORTEX
         && cl_type != CLOUD_INK)
     {
-        return;
+        return false;
     }
 
     const monster * const mons = monster_at(ctarget);
-
-    ASSERT(!cell_is_solid(ctarget));
 
     god_conduct_trigger conducts[3];
     kill_category whose = KC_OTHER;
@@ -821,9 +819,14 @@ void place_cloud(cloud_type cl_type, const coord_def& ctarget, int cl_range,
     }
 
     // There's already a cloud here. See if we can overwrite it.
+    // (Clouds can overwrite weaker cloud types OR clouds of the same type with
+    // less remaining duration)
     const cloud_struct *cloud = cloud_at(ctarget);
-    if (cloud && !cloud_is_stronger(cl_type, *cloud))
-        return;
+    if (cloud && (!cloud_is_stronger(cl_type, *cloud)
+                  && (cloud->type != cl_type || cloud->decay > cl_range * 10)))
+    {
+        return false;
+    }
 
     // If the old cloud was opaque, may need to recalculate los. It *is*
     // possible to overwrite an opaque cloud with a non-opaque one; OOD will do
@@ -833,6 +836,8 @@ void place_cloud(cloud_type cl_type, const coord_def& ctarget, int cl_range,
             _actual_spread_rate(cl_type, spread_rate), whose, killer, source,
             excl_rad);
     _los_cloud_changed(ctarget, env.cloud[ctarget].type, old);
+
+    return true;
 }
 
 bool is_opaque_cloud(cloud_type ctype)
@@ -873,6 +878,7 @@ static bool _cloud_has_negative_side_effects(cloud_type cloud)
     case CLOUD_MISERY:
     case CLOUD_BLASTMOTES:
     case CLOUD_BATS:
+    case CLOUD_RUST:
         return true;
     default:
         return false;
@@ -925,6 +931,13 @@ static int _cloud_base_damage(const actor *act,
  */
 bool actor_cloud_immune(const actor &act, cloud_type type)
 {
+    // Cloud immunity doesn't prevent Blastmote explosions.
+    if (type == CLOUD_BLASTMOTES
+        && (act.is_player() || act.res_fire() < 3))
+    {
+        return false;
+    }
+
     // Qazlalites and scarfwearers get immunity to clouds.
     // and the Cloud Mage too!
     if (is_harmless_cloud(type) || act.cloud_immune())
@@ -971,13 +984,17 @@ bool actor_cloud_immune(const actor &act, cloud_type type)
         case CLOUD_STORM:
             return act.res_elec() >= 3;
         case CLOUD_MISERY:
-            return act.res_negative_energy() >= 3;
+            return act.res_negative_energy() >= 3
+                   || act.is_player()
+                      && have_passive(passive_t::r_misery);
         case CLOUD_VORTEX:
             return act.res_polar_vortex();
         case CLOUD_RAIN:
             return !act.is_fiery();
         case CLOUD_BATS:
             return bool(act.holiness() & MH_UNDEAD);
+        case CLOUD_RUST:
+            return act.is_player() && you.form == transformation::fortress_crab;
         default:
             return false;
     }
@@ -1148,8 +1165,7 @@ static bool _actor_apply_cloud_side_effects(actor *act,
             // It's possible that you got trampled into the mutagenic cloud
             // and it's not your fault... so we'll say it's not intentional.
             // (it's quite bad in any case, so players won't scum, probably.)
-            contaminate_player(1300 + random2(1250), false);
-            // min 2 turns to yellow, max 4
+            contaminate_player(random_range(250, 500), false);
             return true;
         }
         else if (coinflip() && mons->malmutate(cloud.agent(), "mutagenic cloud"))
@@ -1180,6 +1196,11 @@ static bool _actor_apply_cloud_side_effects(actor *act,
     case CLOUD_ACID:
         if (!one_chance_in(3))
             act->corrode(cloud.agent());
+        return true;
+
+    case CLOUD_RUST:
+        act->corrode(cloud.agent(), "the rust", 1);
+        act->weaken(cloud.agent(), 1);
         return true;
 
     case CLOUD_MISERY:
@@ -1307,6 +1328,8 @@ static int _actor_cloud_damage(const actor *act,
     case CLOUD_SPECTRAL:
     case CLOUD_ACID:
     case CLOUD_STORM:
+    case CLOUD_BATS:
+    case CLOUD_RUST:
         final_damage =
             _cloud_damage_output(act, _cloud2beam(cloud.type),
                                  cloud_base_damage,
@@ -1429,9 +1452,14 @@ static bool _cloud_is_harmful(actor *act, cloud_struct &cloud,
  */
 bool is_damaging_cloud(cloud_type type, bool accept_temp_resistances, bool yours)
 {
-    // If you're immune to clouds, then no clouds are damaging. Bing bong so simple!
-    if (you.cloud_immune())
+    // If you're immune to clouds, then no clouds are damaging. Bing bong so
+    // simple!
+    // Except Blastmotes will still explode!
+    if (you.cloud_immune()
+        && (type != CLOUD_BLASTMOTES || you.props.exists(BLASTMOTE_IMMUNE_KEY)))
+    {
         return false;
+    }
 
     // A nasty hack; map_knowledge doesn't preserve whom the cloud belongs to.
     if (type == CLOUD_VORTEX)
@@ -1831,7 +1859,8 @@ static void _spread_cloud(coord_def pos, cloud_type type, int radius, int pow,
     coord_def centre(9,9);
     for (distance_iterator di(pos, true, false); di; ++di)
     {
-        if (di.radius() > radius)
+        // Beam can still return solid cells thanks to wall monsters
+        if (cell_is_solid(*di) || di.radius() > radius)
             return;
 
         if ((exp_map(*di - pos + centre) < INT_MAX) && !cloud_at(*di)
@@ -1919,13 +1948,6 @@ void surround_actor_with_cloud(const actor* a, cloud_type cloud)
         delete_cloud(pos);
     for (adjacent_iterator ai(pos); ai; ++ai)
     {
-        const cloud_struct* existing = cloud_at(*ai);
-        // dprf("surround_actor_with_cloud x:%d y:%d solid:%d cloud_at:%s",
-        //      ai->x, ai->y, cell_is_solid(*ai), existing ? "y" : "n");
-        if (cell_is_solid(*ai))
-            continue;
-        if (existing && existing->type != cloud)
-            continue;
         const monster* mons = monster_at(*ai);
         if (mons && mons->alive() && mons_aligned(a, mons))
             continue;
@@ -2080,12 +2102,15 @@ static const vector<chaos_effect> chaos_effects = {
     },
     {
         "blinding", 5, [](const actor &victim) {
-            return victim.can_be_dazzled();
+            return !victim.res_blind();
         }, BEAM_NONE, [](actor* victim, actor* source) {
             if (victim->is_player())
                 blind_player(random_range(7, 12), ETC_RANDOM);
             else
-                dazzle_target(victim, source, 149);
+            {
+                victim->as_monster()->add_ench(mon_enchant(ENCH_BLIND, 1, source,
+                                               random_range(7, 12) * BASELINE_DELAY));
+            }
             return you.can_see(*victim);
         },
     },

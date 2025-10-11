@@ -157,6 +157,8 @@ static void _redraw_all()
     you.redraw_evasion       = true;
     you.redraw_experience    = true;
     you.redraw_status_lights = true;
+    you.redraw_doom          = true;
+    you.redraw_contam        = true;
 }
 
 static bool is_save_file_name(const string &name)
@@ -1462,7 +1464,7 @@ static void _place_player(dungeon_feature_type stair_taken,
         || feat_is_trap(env.grid(you.pos())))
     {
         for (distance_iterator di(you.pos(), true, false); di; ++di)
-            if (you.is_habitable_feat(env.grid(*di))
+            if (you.is_habitable(*di)
                 && !is_feat_dangerous(env.grid(*di), true)
                 && !feat_is_trap(env.grid(*di))
                 && !(env.pgrid(*di) & FPROP_NO_TELE_INTO))
@@ -1601,7 +1603,6 @@ static void _generic_level_reset()
     clear_travel_trail();
 }
 
-
 // used to resolve generation order for cases where a single level has multiple
 // portals. This currently should only include portals that can appear at most
 // once.
@@ -1609,6 +1610,7 @@ static const vector<branch_type> portal_generation_order =
 {
     BRANCH_SEWER,
     BRANCH_OSSUARY,
+    // do not pregenerate Necropolis: see bazaars
     BRANCH_ICE_CAVE,
     BRANCH_VOLCANO,
     BRANCH_BAILEY,
@@ -2038,8 +2040,8 @@ static void _rescue_player_from_wall()
 static void _fixup_transmuters()
 {
     vector<pair<spell_type, talisman_type>> forms = {
-        { SPELL_BEASTLY_APPENDAGE, TALISMAN_BEAST },
-        { SPELL_SPIDER_FORM,       TALISMAN_FLUX },
+        { SPELL_BEASTLY_APPENDAGE, TALISMAN_QUILL },
+        { SPELL_SPIDER_FORM,       TALISMAN_SPIDER },
         { SPELL_ICE_FORM,          TALISMAN_SERPENT },
         { SPELL_BLADE_HANDS,       TALISMAN_BLADE },
         { SPELL_STATUE_FORM,       TALISMAN_STATUE },
@@ -2056,6 +2058,11 @@ static void _fixup_transmuters()
         // Funny but tragic if the player is over red or blue lava.
         move_item_to_grid(&obj, you.pos(), true);
         del_spell_from_memory(p.first);
+    }
+    if (you.props.exists("consolation_talisman"))
+    {
+        copy_item_to_grid(you.props["consolation_talisman"].get_item(), you.pos());
+        you.props.erase("consolation_talisman");
     }
 }
 #endif
@@ -2417,8 +2424,23 @@ bool load_level(dungeon_feature_type stair_taken, load_mode_type load_mode,
         gozag_count_level_gold();
         if (branches[you.where_are_you].branch_flags & brflag::fully_map)
         {
-            magic_mapping(GDM, 100, true, false, false, true, false);
-            _learn_transporters();
+            magic_mapping(GDM, 100, true, false, false, true, false, coord_def(), true);
+
+            if (player_in_branch(BRANCH_TEMPLE))
+                _learn_transporters();
+            for (rectangle_iterator ri(BOUNDARY_BORDER - 1); ri; ++ri)
+            {
+                if (env.map_knowledge(*ri).seen())
+                {
+                    force_show_update_at(*ri);
+#ifdef USE_TILE
+                    tiles.update_minimap(*ri);
+                    tile_draw_map_cell(*ri, true);
+#elif defined(USE_TILE_WEB)
+                    tiles.mark_for_redraw(*ri);
+#endif
+                }
+            }
         }
     }
 
@@ -3374,8 +3396,9 @@ void delete_level(const level_id &level)
     }
     // Since Pandemonium is internally all the same floor, we need to actually
     // clean up our torch status whenever we leave a Pan floor so that the player
-    // will be able to use it on the next one.
-    else if (level.branch == BRANCH_PANDEMONIUM && you.religion == GOD_YREDELEMNUL)
+    // will be able to use it on the next one. Do the same for portals as well
+    // (for the few cases of repeatable portals, like Necropolis).
+    else if (!is_connected_branch(level) && you.props.exists(YRED_TORCH_USED_KEY))
     {
         CrawlHashTable &levels = you.props[YRED_TORCH_USED_KEY].get_table();
         levels.erase(level.describe());
@@ -3428,6 +3451,10 @@ void level_excursion::go_to(const level_id& next)
     // TODO: reimplement with no_excursions?
     ASSERT(!crawl_state.generating_level || original.branch == BRANCH_ABYSS);
 
+    // This must be set before loading a level as it redraws the map knowledge
+    // which checks what is currently in view
+    you.on_current_level = (next == original);
+
     if (level_id::current() != next)
     {
         ASSERT(level_excursions_allowed());
@@ -3450,6 +3477,9 @@ void level_excursion::go_to(const level_id& next)
         // abyss procgen.
     }
 
+    // I don't trust that excursions to levels you haven't visited during
+    // abyss generation won't mess with this when the pregen_dungeon option is
+    // set to false, so reset it to the correct value --Wizard Ike
     you.on_current_level = (level_id::current() == original);
 }
 

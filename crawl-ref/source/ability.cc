@@ -34,6 +34,7 @@
 #include "evoke.h"
 #include "exercise.h"
 #include "fight.h"
+#include "fineff.h"
 #include "god-abil.h"
 #include "god-companions.h"
 #include "god-conduct.h"
@@ -53,6 +54,7 @@
 #include "mgen-data.h"
 #include "mon-behv.h"
 #include "mon-book.h"
+#include "mon-pick.h" // pick_monster_from
 #include "mon-place.h"
 #include "mon-project.h"
 #include "mon-tentacle.h"
@@ -222,7 +224,7 @@ struct failure_info
             const int sk_mod = invo_skill() == SK_NONE ? 0 :
                                  you.skill(invo_skill(), variable_fail_mult);
             const int piety_mod
-                = piety_fail_denom ? you.piety / piety_fail_denom : 0;
+                = piety_fail_denom ? you.piety() / piety_fail_denom : 0;
             return base_chance - sk_mod - piety_mod;
         }
         default:
@@ -340,10 +342,9 @@ static vector<ability_def> &_get_ability_list()
         // Innate abilities:
         { ABIL_SPIT_POISON, "Spit Poison",
             0, 0, 0, 5, {fail_basis::xl, 20, 1},
-            abflag::breath | abflag::dir_or_target },
-        { ABIL_BREATHE_FIRE, "Breathe Fire",
-            0, 0, 0, 5, {fail_basis::xl, 30, 1},
-            abflag::breath | abflag::dir_or_target },
+            abflag::breath | abflag::dir_or_target | abflag::not_self },
+        { ABIL_GOLDEN_BREATH, "Golden Breath",
+            0, 0, 0, 5, {}, abflag::drac_charges },
         { ABIL_COMBUSTION_BREATH, "Combustion Breath",
             0, 0, 0, 5, {fail_basis::xl, 30, 1},
             abflag::drac_charges },
@@ -395,8 +396,6 @@ static vector<ability_def> &_get_ability_list()
             0, 0, 0, -1, {}, abflag::delay },
         { ABIL_END_TRANSFORMATION, "End Transformation",
             0, 0, 0, -1, {}, abflag::none },
-        { ABIL_BEGIN_UNTRANSFORM, "Begin Untransformation",
-            0, 0, 0, -1, {}, abflag::none },
         { ABIL_INVENT_GIZMO, "Invent Gizmo",
             0, 0, 0, -1, {}, abflag::none },
 
@@ -404,10 +403,22 @@ static vector<ability_def> &_get_ability_list()
             4, 0, 0, -1, {}, abflag::none },
 
         { ABIL_BAT_SWARM, "Bat Swarm",
-            6, 0, 0, -1, {}, abflag::none },
+            6, 0, 0, -1, {}, abflag::instant },
 
         { ABIL_ENKINDLE, "Enkindle",
                 0, 0, 0, -1, {}, abflag::instant },
+
+        { ABIL_SPIDER_JUMP, "Jump",
+                0, 0, 0, -1, {}, abflag::none },
+
+        { ABIL_WATERY_GRAVE, "Watery Grave",
+                    6, 0, 0, -1, {}, abflag::none },
+
+        { ABIL_BESTIAL_TAKEDOWN, "Bestial Takedown",
+            4, 0, 0, 5, {}, abflag::target },
+
+        { ABIL_BREATHE_RUST, "Breathe Rust",
+                0, scaling_cost(120, 12), 0, 4, {}, abflag::none },
 
         // EVOKE abilities use Evocations and come from items.
         { ABIL_EVOKE_BLINK, "Evoke Blink",
@@ -723,12 +734,6 @@ static vector<ability_def> &_get_ability_list()
         { ABIL_WU_JIAN_HEAVENLY_STORM, "Heavenly Storm",
             0, 0, 20, -1, {fail_basis::invo, piety_breakpoint(5), 0, 1},
             abflag::none },
-        // Lunge and Whirlwind abilities aren't menu abilities but currently
-        // need to exist for action counting, hence need enums/entries.
-        { ABIL_WU_JIAN_LUNGE, "Lunge",
-            0, 0, 0, -1, {}, abflag::berserk_ok },
-        { ABIL_WU_JIAN_WHIRLWIND, "Whirlwind",
-            0, 0, 0, -1, {}, abflag::berserk_ok },
         { ABIL_WU_JIAN_WALLJUMP, "Wall Jump",
             0, 0, 0, -1, {}, abflag::berserk_ok },
 
@@ -758,16 +763,22 @@ static vector<ability_def> &_get_ability_list()
 }
 
 static map<ability_type, spell_type> breath_to_spell =
-    {
-        { ABIL_COMBUSTION_BREATH, SPELL_COMBUSTION_BREATH },
-        { ABIL_GLACIAL_BREATH, SPELL_GLACIAL_BREATH },
-        { ABIL_NULLIFYING_BREATH, SPELL_NULLIFYING_BREATH },
-        { ABIL_STEAM_BREATH, SPELL_STEAM_BREATH },
-        { ABIL_NOXIOUS_BREATH, SPELL_NOXIOUS_BREATH },
-        { ABIL_CAUSTIC_BREATH, SPELL_CAUSTIC_BREATH },
-        { ABIL_MUD_BREATH, SPELL_MUD_BREATH },
-        { ABIL_GALVANIC_BREATH, SPELL_GALVANIC_BREATH },
-    };
+{
+    { ABIL_GOLDEN_BREATH, SPELL_GOLDEN_BREATH },
+    { ABIL_COMBUSTION_BREATH, SPELL_COMBUSTION_BREATH },
+    { ABIL_GLACIAL_BREATH, SPELL_GLACIAL_BREATH },
+    { ABIL_NULLIFYING_BREATH, SPELL_NULLIFYING_BREATH },
+    { ABIL_STEAM_BREATH, SPELL_STEAM_BREATH },
+    { ABIL_NOXIOUS_BREATH, SPELL_NOXIOUS_BREATH },
+    { ABIL_CAUSTIC_BREATH, SPELL_CAUSTIC_BREATH },
+    { ABIL_MUD_BREATH, SPELL_MUD_BREATH },
+    { ABIL_GALVANIC_BREATH, SPELL_GALVANIC_BREATH },
+};
+
+spell_type draconian_breath_to_spell(ability_type abil)
+{
+    return breath_to_spell[abil];
+}
 
 static const ability_def& get_ability_def(ability_type abil)
 {
@@ -830,8 +841,6 @@ static int _ability_zap_pow(ability_type abil)
     {
         case ABIL_SPIT_POISON:
             return 10 + you.experience_level;
-        case ABIL_BREATHE_FIRE:
-            return you.experience_level * 2;
         case ABIL_BREATHE_POISON:
             return you.experience_level;
         case ABIL_MAKHLEB_DESTRUCTION:
@@ -1155,6 +1164,7 @@ ability_type fixup_ability(ability_type ability)
             return ABIL_NON_ABILITY;
         return ability;
 
+    case ABIL_SPIDER_JUMP:
     case ABIL_EVOKE_BLINK:
         if (you.stasis())
             return ABIL_NON_ABILITY;
@@ -1258,7 +1268,6 @@ static int _adjusted_failure_chance(ability_type ability, int base_chance)
 {
     switch (ability)
     {
-    case ABIL_BREATHE_FIRE:
     case ABIL_GLACIAL_BREATH:
     case ABIL_CAUSTIC_BREATH:
     case ABIL_GALVANIC_BREATH:
@@ -1271,7 +1280,7 @@ static int _adjusted_failure_chance(ability_type ability, int base_chance)
         return base_chance;
 
     case ABIL_NEMELEX_DEAL_FOUR:
-        return 70 - (you.piety * 2 / 45) - you.skill(SK_INVOCATIONS, 9) / 2;
+        return 70 - (you.piety() * 2 / 45) - you.skill(SK_INVOCATIONS, 9) / 2;
 
     default:
         return base_chance;
@@ -1455,11 +1464,6 @@ static int _hurl_damnation_power()
     return 40 + you.experience_level * 6;
 }
 
-static int _blinkbolt_power()
-{
-    return get_form()->get_level(200) / 27;
-}
-
 static int _orb_of_dispater_power();
 
 // XXX This is a mess, caused by abilities doing damage via various
@@ -1533,17 +1537,14 @@ static string _ability_damage_string(ability_type ability)
                                        _orb_of_dispater_power());
         case ABIL_SPIT_POISON:
         case ABIL_BREATHE_POISON:
-        case ABIL_BREATHE_FIRE:
             dam = zap_damage(ability_to_zap(ability), _ability_zap_pow(ability),
                              false, false);
             break;
         case ABIL_BLINKBOLT:
-            return spell_damage_string(SPELL_BLINKBOLT, false,
-                                       _blinkbolt_power());
+            dam = get_form(transformation::storm)->get_special_damage(false);
+            break;
         case ABIL_COMBUSTION_BREATH:
-            dam = combustion_breath_damage(you.form == transformation::dragon
-                                            ? you.experience_level * 2
-                                            : you.experience_level, false);
+            dam = combustion_breath_damage(draconian_breath_power(), false);
             break;
         case ABIL_MUD_BREATH:
         case ABIL_GALVANIC_BREATH:
@@ -1552,10 +1553,9 @@ static string _ability_damage_string(ability_type ability)
         case ABIL_NULLIFYING_BREATH:
         case ABIL_NOXIOUS_BREATH:
         case ABIL_CAUSTIC_BREATH:
+        case ABIL_GOLDEN_BREATH:
             return spell_damage_string(breath_to_spell[ability], false,
-                                       you.form == transformation::dragon
-                                        ? you.experience_level * 2
-                                        : you.experience_level);
+                                       draconian_breath_power());
         default:
             return "";
     }
@@ -1901,11 +1901,11 @@ static bool _check_ability_possible(const ability_def& abil, bool quiet = false)
     // Check that we can afford to pay the costs.
     // Note that mutation shenanigans might leave us with negative MP,
     // so don't fail in that case if there's no MP cost.
-    if (abil.get_mp_cost() > 0 && !enough_mp(abil.get_mp_cost(), quiet, true))
+    if (abil.get_mp_cost() > 0 && !enough_mp(abil.get_mp_cost(), quiet, !quiet))
         return false;
 
     const int hpcost = abil.get_hp_cost();
-    if (hpcost > 0 && !enough_hp(hpcost, quiet))
+    if (hpcost > 0 && !enough_hp(hpcost, quiet, !quiet))
         return false;
 
     switch (abil.ability)
@@ -2109,6 +2109,7 @@ static bool _check_ability_possible(const ability_def& abil, bool quiet = false)
         return true;
     }
 
+    case ABIL_GOLDEN_BREATH:
     case ABIL_COMBUSTION_BREATH:
     case ABIL_GLACIAL_BREATH:
     case ABIL_GALVANIC_BREATH:
@@ -2125,7 +2126,6 @@ static bool _check_ability_possible(const ability_def& abil, bool quiet = false)
         }
         return true;
 
-    case ABIL_BREATHE_FIRE:
     case ABIL_SPIT_POISON:
     case ABIL_BREATHE_POISON:
         if (you.duration[DUR_BREATH_WEAPON])
@@ -2251,6 +2251,16 @@ static bool _check_ability_possible(const ability_def& abil, bool quiet = false)
         }
         return true;
 
+    // Note: *Not* identical to blink. Is not affected by -Tele.
+    case ABIL_SPIDER_JUMP:
+        if (you.duration[DUR_BLINK_COOLDOWN])
+        {
+            if (!quiet)
+                canned_msg(MSG_CANNOT_DO_YET);
+            return false;
+        }
+        return true;
+
     case ABIL_EVOKE_BLINK:
         if (you.duration[DUR_BLINK_COOLDOWN])
         {
@@ -2269,6 +2279,24 @@ static bool _check_ability_possible(const ability_def& abil, bool quiet = false)
              mpr(no_tele_reason);
         return false;
     }
+
+    case ABIL_WATERY_GRAVE:
+        if (you.props.exists(WATERY_GRAVE_XP_KEY))
+        {
+            if (!quiet)
+                mpr("You must recover your energy before doing this again.");
+            return false;
+        }
+        for (radius_iterator ri(you.pos(), 4, C_SQUARE, LOS_NO_TRANS, false); ri; ++ri)
+        {
+            if (feat_is_water(env.grid(*ri)))
+                return true;
+        }
+
+        if (!quiet)
+            mpr("There is no water in range!");
+
+        return false;
 
     case ABIL_TROG_BERSERK:
         return you.can_go_berserk(true, false, true)
@@ -2380,7 +2408,7 @@ static bool _check_ability_possible(const ability_def& abil, bool quiet = false)
         return _can_rising_flame(quiet);
 
     case ABIL_DIG:
-        return form_keeps_mutations();
+        return !form_changes_anatomy();
 
     case ABIL_SIPHON_ESSENCE:
         if (you.duration[DUR_SIPHON_COOLDOWN])
@@ -2500,7 +2528,7 @@ static bool _check_ability_possible(const ability_def& abil, bool quiet = false)
         if (player_in_branch(BRANCH_CRUCIBLE))
         {
             if (!quiet)
-                mpr("Mahkleb denies you. Endure the Crucible first!");
+                mpr("Makhleb denies you. Endure the Crucible first!");
             return false;
         }
         else if (you.form == transformation::slaughter)
@@ -2620,8 +2648,13 @@ unique_ptr<targeter> find_ability_targeter(ability_type ability)
         return make_unique<targeter_maybe_radius>(&you, LOS_NO_TRANS, 1, 0, 1);
 
     // Multiposition:
+    case ABIL_SPIDER_JUMP:
     case ABIL_EVOKE_BLINK:
         return make_unique<targeter_multiposition>(&you, find_blink_targets());
+    case ABIL_WATERY_GRAVE:
+        return make_unique<targeter_watery_grave>();
+    case ABIL_BESTIAL_TAKEDOWN:
+        return make_unique<targeter_bestial_takedown>();
     case ABIL_WORD_OF_CHAOS:
         return make_unique<targeter_multiposition>(&you, find_chaos_targets(true));
     case ABIL_ZIN_RECITE:
@@ -2665,7 +2698,6 @@ unique_ptr<targeter> find_ability_targeter(ability_type ability)
 #endif
     case ABIL_EVOKE_TURN_INVISIBLE:
     case ABIL_END_TRANSFORMATION:
-    case ABIL_BEGIN_UNTRANSFORM:
     case ABIL_ZIN_VITALISATION:
     case ABIL_TSO_DIVINE_SHIELD:
     case ABIL_YRED_RECALL_UNDEAD_HARVEST:
@@ -2732,9 +2764,65 @@ unique_ptr<targeter> find_ability_targeter(ability_type ability)
     return nullptr;
 }
 
+static const vector<pop_entry> pop_dragons =
+{
+  {  0,  13,  100, FALL, MONS_STEAM_DRAGON },
+  {  0,  15,  100, PEAK, MONS_ACID_DRAGON },
+  {  0,  15,  100, PEAK, MONS_SWAMP_DRAKE },
+  {  9,  18,  100, PEAK, MONS_WIND_DRAKE },
+  {  9,  18,  100, PEAK, MONS_DEATH_DRAKE },
+  {  9,  18,  100, FALL, MONS_RIME_DRAKE },
+  {  9,  20,  100, RISE, MONS_LINDWURM },
+  { 15,  22,  100, RISE, MONS_SWAMP_DRAGON },
+  { 17,  24,  100, PEAK, MONS_FIRE_DRAGON },
+  { 17,  24,  100, PEAK, MONS_ICE_DRAGON },
+  { 21,  27,  100, FALL, MONS_IRON_DRAGON },
+  { 21,  27,  100, PEAK, MONS_STORM_DRAGON },
+  { 21,  27,  100, PEAK, MONS_SHADOW_DRAGON },
+  { 24,  30,  100, RISE, MONS_QUICKSILVER_DRAGON },
+  { 24,  30,  100, RISE, MONS_GOLDEN_DRAGON },
+};
+
+static bool _dragon_mask_veto_mon(monster_type mon)
+{
+   // Don't summon any beast that would anger your god.
+    return god_hates_monster(mon);
+}
+
+static bool _invoke_dragons()
+{
+    bool made_mons = false;
+    // Invoke mon-pick with our custom list
+    monster_type mon = pick_monster_from(pop_dragons,
+                                         you.get_experience_level(),
+                                         _dragon_mask_veto_mon);
+    mgen_data mg(mon, BEH_FRIENDLY, you.pos(), MHITYOU, MG_AUTOFOE);
+    mg.set_summoned(&you, 0, summ_dur(1 + random2(3)));
+    if (create_monster(mg))
+        {
+            made_mons = true;
+            mpr("A dragon answers your prayer!");
+        }
+    return made_mons;
+}
+
 bool ability_has_targeter(ability_type abil)
 {
     return bool(find_ability_targeter(abil));
+}
+
+static bool _not_free_religious_ability(ability_type ability)
+{
+    const ability_def& abil = get_ability_def(ability);
+    return is_religious_ability(abil.ability)
+               && (abil.piety_cost || (abil.flags & abflag::exhaustion)
+                   || (abil.flags & abflag::max_hp_drain)
+                   || (abil.ability == ABIL_ZIN_RECITE)
+                   || (abil.flags & abflag::card) || (abil.flags & abflag::gold)
+                   || (abil.flags & abflag::sacrifice)
+                   || (abil.flags & abflag::torment)
+                   || (abil.flags & abflag::injury) || abil.get_hp_cost() > 0
+                   || abil.get_mp_cost() > 0);
 }
 
 bool activate_talent(const talent& tal, dist *target)
@@ -2768,7 +2856,7 @@ bool activate_talent(const talent& tal, dist *target)
         direction_chooser_args args;
 
         args.hitfunc = hitfunc.get();
-        args.restricts = testbits(abil.flags, abflag::target) ? DIR_TARGET
+        args.restricts = testbits(abil.flags, abflag::target) ? DIR_ENFORCE_RANGE
                                                               : DIR_NONE;
         args.mode = TARG_HOSTILE;
         args.range = range;
@@ -2851,19 +2939,19 @@ bool activate_talent(const talent& tal, dist *target)
             // Ephemeral Shield activates on any invocation with a cost,
             // even if that's just a cooldown or small amounts of HP.
             // No rapidly wall-jumping or renaming your ancestor, alas.
-            if (is_religious_ability(abil.ability)
-                && (abil.piety_cost || (abil.flags & abflag::exhaustion)
-                    || (abil.flags & abflag::max_hp_drain)
-                    || (abil.ability == ABIL_ZIN_RECITE)
-                    || (abil.flags & abflag::card) || (abil.flags & abflag::gold)
-                    || (abil.flags & abflag::sacrifice)
-                    || (abil.flags & abflag::torment)
-                    || (abil.flags & abflag::injury) || abil.get_hp_cost() > 0
-                    || abil.get_mp_cost() > 0)
+            if (_not_free_religious_ability(abil.ability)
                 && you.has_mutation(MUT_EPHEMERAL_SHIELD))
             {
                 you.set_duration(DUR_EPHEMERAL_SHIELD, random_range(3, 5));
                 you.redraw_armour_class = true;
+            }
+
+            if (_not_free_religious_ability(abil.ability)
+                && you.unrand_equipped(UNRAND_DRAGONMASK)
+                && there_are_monsters_nearby(true, true, false))
+            {
+                if (x_chance_in_y(10 + 2 * abil.avg_piety_cost(), 100))
+                    _invoke_dragons();
             }
 
             // XXX: Merge Dismiss Apostle #1/2/3 into a single count
@@ -3013,12 +3101,42 @@ static spret _siphon_essence(bool fail)
     return spret::success;
 }
 
+/**
+ * What power does the player use draconian (and dragon form) breath abilities
+ * at?
+ *
+ * @param shapeshifting_skill   If -1 (the default), use the player's current
+ *                              dragon form power bonus (if they're actually in
+ *                              it). If otherwise, return what it would be if
+ *                              they were in dragon form with the given amount
+ *                              of shapeshifting.
+ *
+ * @return The power the player uses these breath abilities at.
+ */
+int draconian_breath_power(int shapeshifting_skill)
+{
+    const bool actual = shapeshifting_skill == -1;
+
+    int power = 0;
+    if (actual && you.form == transformation::dragon)
+        shapeshifting_skill = get_form(transformation::dragon)->get_level(1);
+
+    // Use shapeshifting power if the player is in dragon form currently *or*
+    // we're previewing this on a talisman (regardless of what form we're
+    // currently in).
+    if (you.form == transformation::dragon || !actual)
+        power = max(0, shapeshifting_skill - 5);
+    if (species::is_draconian(you.species))
+        power += you.experience_level;
+
+    return power;
+}
+
 static spret _do_draconian_breath(const ability_def& abil, dist *target, bool fail)
 {
     spret result = spret::abort;
 
-    const int pow = you.form == transformation::dragon ? you.experience_level * 2
-                                                       : you.experience_level;
+    const int pow = draconian_breath_power();
 
     result = your_spells(breath_to_spell[abil.ability], pow,
                             false, nullptr, target, fail);
@@ -3208,6 +3326,7 @@ static spret _do_ability(const ability_def& abil, bool fail, dist *target,
         }
         break;
 
+    case ABIL_GOLDEN_BREATH:
     case ABIL_COMBUSTION_BREATH:
     case ABIL_GLACIAL_BREATH:
     case ABIL_NULLIFYING_BREATH:
@@ -3218,27 +3337,32 @@ static spret _do_ability(const ability_def& abil, bool fail, dist *target,
     case ABIL_MUD_BREATH:
         return _do_draconian_breath(abil, target, fail);
 
-    case ABIL_BREATHE_FIRE:
     case ABIL_BREATHE_POISON:
     {
         spret result = spret::abort;
         int cooldown = 3 + random2(10) + random2(30 - you.experience_level);
 
-        static map<ability_type, string> breath_message =
-        {
-            { ABIL_BREATHE_FIRE, "You breathe a blast of fire." },
-            { ABIL_BREATHE_POISON, "You exhale a blast of poison gas." },
-        };
-
         result = zapping(ability_to_zap(abil.ability),
                          _ability_zap_pow(abil.ability), beam, true,
-                         breath_message[abil.ability].c_str(), fail);
+                         "You exhale a blast of poison gas.", fail);
 
         if (result == spret::success)
             you.increase_duration(DUR_BREATH_WEAPON, cooldown);
 
         return result;
     }
+
+    case ABIL_SPIDER_JUMP:
+        return spider_jump();
+
+    case ABIL_WATERY_GRAVE:
+        return cast_watery_grave();
+
+    case ABIL_BESTIAL_TAKEDOWN:
+        return do_bestial_takedown(beam.target);
+
+    case ABIL_BREATHE_RUST:
+        return your_spells(SPELL_RUST_BREATH, get_form()->get_effect_size(), false, nullptr, target);
 
     case ABIL_EVOKE_BLINK:      // randarts
         return cast_blink(min(50, 1 + you.skill(SK_EVOCATIONS, 3)), fail);
@@ -3268,32 +3392,12 @@ static spret _do_ability(const ability_def& abil, bool fail, dist *target,
             drain_player(40, false, true); // yes, before the fail check!
         fail_check();
         potionlike_effect(POT_INVISIBILITY, you.skill(SK_EVOCATIONS, 2) + 5);
-        contaminate_player(1000 + random2(500), true);
         break;
 
     case ABIL_END_TRANSFORMATION:
-        if (feat_dangerous_for_form(you.default_form, env.grid(you.pos())))
-        {
-            mprf("Turning back right now would cause you to %s!",
-                    env.grid(you.pos()) == DNGN_LAVA ? "burn" : "drown");
+        if (transforming_is_unsafe(you.default_form))
             return spret::abort;
-        }
         return_to_default_form();
-        break;
-
-    case ABIL_BEGIN_UNTRANSFORM:
-        if (feat_dangerous_for_form(transformation::none, env.grid(you.pos())))
-        {
-            mprf("Turning back right now would cause you to %s!",
-                    env.grid(you.pos()) == DNGN_LAVA ? "burn" : "drown");
-            return spret::abort;
-        }
-        if (!i_feel_safe(true) && !yesno("Still begin untransforming?", true, 'n'))
-        {
-            canned_msg(MSG_OK);
-            return spret::abort;
-        }
-        start_delay<TransformDelay>(transformation::none, nullptr);
         break;
 
     case ABIL_INVENT_GIZMO:
@@ -3307,11 +3411,11 @@ static spret _do_ability(const ability_def& abil, bool fail, dist *target,
     case ABIL_BAT_SWARM:
     {
         mpr("You scatter into a swarm of vampire bats!");
-        transform(random2(12), transformation::bat_swarm);
+        transform(random_range(15, 24), transformation::bat_swarm);
         you.transform_uncancellable = true;
         const int pow = get_form()->get_level(10);
         big_cloud(CLOUD_BATS, &you, you.pos(), 18 + pow / 20, 8 + pow / 15, 1);
-        you.props[BATFORM_XP_KEY] = 90;
+        you.props[BATFORM_XP_KEY] = 80;
         break;
     }
 
@@ -3385,11 +3489,7 @@ static spret _do_ability(const ability_def& abil, bool fail, dist *target,
     }
 
     case ABIL_TSO_SUMMON_DIVINE_WARRIOR:
-        if (stop_summoning_prompt(MR_RES_POISON, M_FLIES))
-            return spret::abort;
-        fail_check();
-        summon_holy_warrior(you.skill(SK_INVOCATIONS, 4), false);
-        break;
+        return cast_summon_holy_warrior(you.skill(SK_INVOCATIONS, 4), fail);
 
     case ABIL_TSO_BLESS_WEAPON:
         simple_god_message(" will bless one of your weapons.");
@@ -3399,9 +3499,7 @@ static spret _do_ability(const ability_def& abil, bool fail, dist *target,
         break;
 
     case ABIL_KIKU_UNEARTH_WRETCHES:
-        fail_check();
-        kiku_unearth_wretches();
-        break;
+        return kiku_unearth_wretches(fail);
 
     case ABIL_KIKU_SIGN_OF_RUIN:
         fail_check();
@@ -3536,6 +3634,13 @@ static spret _do_ability(const ability_def& abil, bool fail, dist *target,
             return spret::abort;
         }
 
+        // XXX: Chosen as representative 'neither flies nor resists poison'
+        //      monster and one that does both, though at higher invo it stops
+        //      being possible to get one wthout rPois, so the warning is only
+        //      *almost* correct.
+        if (!player_summon_check({MONS_ORANGE_DEMON, MONS_BLIZZARD_DEMON}))
+            return spret::abort;
+
         fail_check();
         makhleb_infernal_servant();
         break;
@@ -3563,16 +3668,16 @@ static spret _do_ability(const ability_def& abil, bool fail, dist *target,
     case ABIL_TROG_HAND:
         fail_check();
         // Trog abilities don't use or train invocations.
-        trog_do_trogs_hand(you.piety / 2);
+        trog_do_trogs_hand(you.piety() / 2);
         break;
 
     case ABIL_TROG_BROTHERS_IN_ARMS:
-        fail_check();
-        // Trog abilities don't use or train invocations.
-        summon_berserker(you.piety +
-                         random2(you.piety/4) - random2(you.piety/4),
-                         &you);
-        break;
+    {
+        int pow = you.piety() + random2(you.piety() / 4);
+        // force a sequence point between random calls
+        pow -= random2(you.piety() / 4);
+        return cast_summon_berserker(pow, fail);
+    }
 
     case ABIL_SIF_MUNA_FORGET_SPELL:
         if (cast_selective_amnesia() <= 0)
@@ -3730,6 +3835,8 @@ static spret _do_ability(const ability_def& abil, bool fail, dist *target,
         break;
 
     case ABIL_BEOGH_BLOOD_FOR_BLOOD:
+        if (stop_summoning_prompt())
+            return spret::abort;
         fail_check();
         beogh_blood_for_blood();
         break;
@@ -3756,7 +3863,7 @@ static spret _do_ability(const ability_def& abil, bool fail, dist *target,
                                   : ("your " + you.hand_name(true));
         mprf(MSGCH_DURATION, "A thick mucus forms on %s.", msg.c_str());
         you.increase_duration(DUR_SLIMIFY,
-                              random2avg(you.piety / 4, 2) + 3, 100);
+                              random2avg(you.piety() / 4, 2) + 3, 100);
         break;
     }
 
@@ -4000,17 +4107,6 @@ static spret _do_ability(const ability_def& abil, bool fail, dist *target,
 // been paid.
 static void _finalize_ability_costs(const ability_def& abil, int mp_cost, int hp_cost)
 {
-    // wall jump handles its own timing, because it can be instant if
-    // serpent's lash is activated.
-    if (abil.flags & abflag::instant)
-    {
-        you.turn_is_over = false;
-        you.elapsed_time_at_last_input = you.elapsed_time;
-        update_turn_count();
-    }
-    else if (abil.ability != ABIL_WU_JIAN_WALLJUMP)
-        you.turn_is_over = true;
-
     const int piety_cost = abil.piety_cost.cost();
 
     dprf("Cost: mp=%d; hp=%d; piety=%d",
@@ -4025,6 +4121,21 @@ static void _finalize_ability_costs(const ability_def& abil, int mp_cost, int hp
     // This should trigger off using invocations that cost HP
     if (hp_cost)
         makhleb_celebrant_bloodrite();
+
+    if (mp_cost)
+        stardust_orb_trigger(mp_cost);
+
+    // wall jump handles its own timing, because it can be instant if
+    // serpent's lash is activated.
+    if (abil.flags & abflag::instant)
+    {
+        you.turn_is_over = false;
+        you.elapsed_time_at_last_input = you.elapsed_time;
+        fire_final_effects();
+        update_turn_count();
+    }
+    else if (abil.ability != ABIL_WU_JIAN_WALLJUMP)
+        you.turn_is_over = true;
 }
 
 int choose_ability_menu(const vector<talent>& talents)
@@ -4212,7 +4323,7 @@ bool player_has_ability(ability_type abil, bool include_unusable)
     }
 
     if (species::draconian_breath(you.species) == abil)
-        return draconian_dragon_exception();
+        return !form_changes_anatomy() || you.form == transformation::dragon;
 
     switch (abil)
     {
@@ -4226,16 +4337,24 @@ bool player_has_ability(ability_type abil, bool include_unusable)
         // fallthrough
     case ABIL_DIG:
         return you.can_burrow()
-               && (form_keeps_mutations() || include_unusable);
+               && (!form_changes_anatomy() || include_unusable);
     case ABIL_HOP:
-        return you.get_mutation_level(MUT_HOP);
+        return you.get_mutation_level(MUT_FROG_LEGS);
     case ABIL_BREATHE_POISON:
         return you.get_mutation_level(MUT_SPIT_POISON) >= 2;
     case ABIL_SPIT_POISON:
         return you.get_mutation_level(MUT_SPIT_POISON) == 1;
-    case ABIL_BREATHE_FIRE:
+    case ABIL_GOLDEN_BREATH:
         return you.form == transformation::dragon
                && !species::is_draconian(you.species);
+    case ABIL_SPIDER_JUMP:
+        return you.form == transformation::spider;
+    case ABIL_WATERY_GRAVE:
+        return you.form == transformation::aqua;
+    case ABIL_BESTIAL_TAKEDOWN:
+        return you.form == transformation::werewolf;
+    case ABIL_BREATHE_RUST:
+        return you.form == transformation::fortress_crab;
     case ABIL_BLINKBOLT:
         return you.form == transformation::storm;
     case ABIL_SIPHON_ESSENCE:
@@ -4261,9 +4380,6 @@ bool player_has_ability(ability_type abil, bool include_unusable)
                && (!silenced(you.pos()) || include_unusable);
     case ABIL_END_TRANSFORMATION:
         return you.form != you.default_form && !you.transform_uncancellable;
-    case ABIL_BEGIN_UNTRANSFORM:
-        return you.form == you.default_form
-               && you.default_form != transformation::none;
     // TODO: other god abilities
     case ABIL_RENOUNCE_RELIGION:
         return !you_worship(GOD_NO_GOD);
@@ -4313,7 +4429,7 @@ vector<talent> your_talents(bool check_confused, bool include_unusable, bool ign
             ABIL_SHAFT_SELF,
             ABIL_HOP,
             ABIL_SPIT_POISON,
-            ABIL_BREATHE_FIRE,
+            ABIL_GOLDEN_BREATH,
             ABIL_COMBUSTION_BREATH,
             ABIL_GLACIAL_BREATH,
             ABIL_BREATHE_POISON,
@@ -4329,12 +4445,15 @@ vector<talent> your_talents(bool check_confused, bool include_unusable, bool ign
             ABIL_CACOPHONY,
             ABIL_BAT_SWARM,
             ABIL_ENKINDLE,
+            ABIL_SPIDER_JUMP,
+            ABIL_WATERY_GRAVE,
+            ABIL_BESTIAL_TAKEDOWN,
+            ABIL_BREATHE_RUST,
             ABIL_BLINKBOLT,
             ABIL_SIPHON_ESSENCE,
             ABIL_IMBUE_SERVITOR,
             ABIL_IMPRINT_WEAPON,
             ABIL_END_TRANSFORMATION,
-            ABIL_BEGIN_UNTRANSFORM,
             ABIL_RENOUNCE_RELIGION,
             ABIL_CONVERT_TO_BEOGH,
             ABIL_EVOKE_BLINK,
@@ -4614,7 +4733,7 @@ vector<ability_type> get_god_abilities(bool ignore_silence, bool ignore_piety,
     {
         if (you.props.exists(AVAILABLE_CURSE_KEY))
             abilities.push_back(ABIL_ASHENZARI_CURSE);
-        if (ignore_piety || you.piety > ASHENZARI_BASE_PIETY )
+        if (ignore_piety || you.raw_piety > ASHENZARI_BASE_PIETY )
             abilities.push_back(ABIL_ASHENZARI_UNCURSE);
     }
     // XXX: should we check ignore_piety?

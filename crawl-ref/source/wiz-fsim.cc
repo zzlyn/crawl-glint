@@ -189,7 +189,7 @@ static void _write_mon(FILE * o, monster &mon)
 
 static bool _equip_weapon(const string &weapon, bool &abort)
 {
-    for (int i = 0; i < ENDOFPACK; ++i)
+    for (int i = 0; i < MAX_GEAR; ++i)
     {
         if (!you.inv[i].defined())
             continue;
@@ -252,7 +252,7 @@ static bool _fsim_kit_equip(const string &kit, string &error)
 
     if (!missile.empty())
     {
-        for (int i = 0; i < ENDOFPACK; ++i)
+        for (int i = 0; i < MAX_GEAR; ++i)
         {
             if (!you.inv[i].defined())
                 continue;
@@ -473,6 +473,10 @@ static fight_data _get_fight_data(monster &mon, int iter_limit, bool defend)
     crawl_state.disables.set(DIS_DEATH);
     crawl_state.disables.set(DIS_DELAY);
     crawl_state.disables.set(DIS_AFFLICTIONS);
+
+    // Disable animations (there's no screen redraw, so the player can't see
+    // them, but they will often still delay for significant lengths of time).
+    unwind_var<use_animations_type> unwind_anim(Options.use_animations, UA_NONE);
 
     {
         msg::suppress mx;

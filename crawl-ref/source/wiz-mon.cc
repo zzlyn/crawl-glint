@@ -99,7 +99,7 @@ void wizard_create_spec_monster_name()
         fixup_zombie_type(static_cast<monster_type>(mspec.type),
                           mspec.monbase);
 
-    coord_def place = find_newmons_square(type, you.pos());
+    coord_def place = find_newmons_square(type, you.pos(), 2, you.current_vision);
     if (!in_bounds(place))
     {
         // Try again with habitat HT_LAND.
@@ -122,71 +122,6 @@ void wizard_create_spec_monster_name()
     {
         mprf(MSGCH_DIAGNOSTICS, "Unable to place monster.");
         return;
-    }
-
-    // FIXME: This is a bit useless, seeing how you cannot set the
-    // ghost's stats, brand or level, among other things.
-    if (mspec.type == MONS_PLAYER_GHOST)
-    {
-        unsigned short idx = env.mgrid(place);
-
-        if (idx >= MAX_MONSTERS || env.mons[idx].type != MONS_PLAYER_GHOST)
-        {
-            for (idx = 0; idx < MAX_MONSTERS; idx++)
-            {
-                if (env.mons[idx].type == MONS_PLAYER_GHOST
-                    && env.mons[idx].alive())
-                {
-                    break;
-                }
-            }
-        }
-
-        if (idx >= MAX_MONSTERS)
-        {
-            mpr("Couldn't find player ghost, probably going to crash.");
-            more();
-            return;
-        }
-
-        monster    &mon = env.mons[idx];
-        ghost_demon ghost;
-
-        ghost.name = random_choose("John Doe", "Jane Doe", "Jay Doe");
-
-        char input_str[80];
-        msgwin_get_line("Make player ghost which species? (case-sensitive) ",
-                        input_str, sizeof(input_str));
-
-        species_type sp_id = species::from_abbrev(input_str);
-        if (sp_id == SP_UNKNOWN)
-            sp_id = species::from_str(input_str);
-        if (sp_id == SP_UNKNOWN)
-        {
-            mpr("No such species, making it Human.");
-            sp_id = SP_HUMAN;
-        }
-        ghost.species = static_cast<species_type>(sp_id);
-
-        msgwin_get_line("Give player ghost which background? ",
-                        input_str, sizeof(input_str));
-
-        int job_id = get_job_by_abbrev(input_str);
-
-        if (job_id == JOB_UNKNOWN)
-            job_id = get_job_by_name(input_str);
-
-        if (job_id == JOB_UNKNOWN)
-        {
-            mpr("No such background, making it a Fighter.");
-            job_id = JOB_FIGHTER;
-        }
-        ghost.job = static_cast<job_type>(job_id);
-        ghost.xl = 7;
-        ghost.max_hp = 20;
-        ASSERT(debug_check_ghost(ghost));
-
-        mon.set_ghost(ghost);
     }
 }
 
@@ -263,7 +198,7 @@ void debug_list_monsters()
         count++;
         prev_name = name;
 
-        int exp = exper_value(*mi);
+        int exp = exp_value(*mi);
         total_exp += exp;
         if (!mons_is_unique(mi->type))
             total_nonuniq_exp += exp;
@@ -301,14 +236,28 @@ void debug_list_monsters()
     }
 }
 
-static const char* ht_names[] =
+static string _habitat_debug_name(habitat_type ht)
 {
-    "land",
-    "amphibious",
-    "water",
-    "lava",
-    "amphibious_lava",
-};
+    string result;
+    if (ht & HT_DRY_LAND)
+        result += "dry_land|";
+    if (ht & HT_SHALLOW_WATER)
+        result += "shallow_water|";
+    if (ht & HT_DEEP_WATER)
+        result += "deep_water|";
+    if (ht & HT_LAVA)
+        result += "lava|";
+    if (ht & HT_MALIGN_GATEWAY)
+        result += "malign_gateway|";
+    if (ht & HT_WALLS_ONLY)
+        result += "walls|";
+    if (ht >= (HT_WALLS_ONLY << 1))
+        result += "INVALID|";
+    if (result.empty())
+        return "none";
+    result.pop_back();
+    return result;
+}
 
 // Prints a number of useful (for debugging, that is) stats on monsters.
 void debug_stethoscope(int mon)
@@ -371,7 +320,7 @@ void debug_stethoscope(int mon)
          mons.base_armour_class(), mons.armour_class(),
          mons.base_evasion(), mons.evasion(),
          mons.willpower(),
-         exper_value(mons),
+         exp_value(mons),
          mons.speed, mons.speed_increment,
          mons.base_monster != MONS_NO_MONSTER ? " base=" : "",
          mons.base_monster != MONS_NO_MONSTER ?
@@ -387,14 +336,11 @@ void debug_stethoscope(int mon)
     }
 
     // Print habitat and behaviour information.
-    const habitat_type hab = mons_habitat(mons);
-
-    COMPILE_CHECK(ARRAYSZ(ht_names) == NUM_HABITATS);
     const actor * const summoner = actor_by_mid(mons.summoner);
     mprf(MSGCH_DIAGNOSTICS,
          "hab=%s beh=%s(%d) foe=%s(%d) mem=%d target=(%d,%d) "
          "firing_pos=(%d,%d) patrol_point=(%d,%d) god=%s%s",
-         (hab >= 0 && hab < NUM_HABITATS) ? ht_names[hab] : "INVALID",
+         _habitat_debug_name(mons_habitat(mons)).c_str(),
          mons.asleep()                    ? "sleep"
          : mons.behaviour == BEH_BATTY   ? "flitting"
          : mons_is_wandering(mons)       ? "wander"

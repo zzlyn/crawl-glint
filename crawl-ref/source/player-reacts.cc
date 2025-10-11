@@ -44,10 +44,12 @@
 #include "dlua.h"
 #include "dungeon.h"
 #include "env.h"
+#include "evoke.h"
 #include "exercise.h"
 #include "files.h"
 #include "god-abil.h"
 #include "god-companions.h"
+#include "god-conduct.h"
 #include "god-passive.h"
 #include "invent.h"
 #include "item-prop.h"
@@ -142,6 +144,13 @@ static bool _decrement_a_duration(duration_type dur, int delay,
     const int old_dur = you.duration[dur];
     you.duration[dur] -= delay;
 
+    // Amulets of dissipation wear off negative statuses faster
+    if (duration_dispellable(dur) && duration_negative(dur)
+        && you.wearing_jewellery(AMU_DISSIPATION))
+    {
+        you.duration[dur] -= delay * you.wearing_jewellery(AMU_DISSIPATION);
+    }
+
     // If we start expiring, handle exploss and print the exppoint message.
     if (you.duration[dur] <= exppoint && old_dur > exppoint)
     {
@@ -201,6 +210,21 @@ static void _decrement_petrification(int delay)
         else if (dur < 15 && old_dur >= 15)
             mpr("Your limbs are stiffening.");
     }
+}
+
+static void _decrement_sleep_and_daze(int delay)
+{
+    const bool break_sleep = _decrement_a_duration(DUR_SLEEP, delay);
+    const bool break_daze = _decrement_a_duration(DUR_DAZED, delay);
+
+    // Add a tiny bit of duration back to the effects we're breaking, so that
+    // you.wake_up will see them and print appropriate messages.
+    if (break_sleep)
+        you.duration[DUR_SLEEP] = 1;
+    if (break_daze)
+        you.duration[DUR_DAZED] = 1;
+
+    you.wake_up(break_sleep, break_daze);
 }
 
 static void _decrement_attraction(int delay)
@@ -360,6 +384,21 @@ static void _update_cowardice()
         mpr("You feel a twist of horror at the sight of this foe.");
 }
 
+static void _update_claustrophobia()
+{
+    if (!you.has_bane(BANE_CLAUSTROPHOBIA))
+        return;
+
+    int count = 0;
+    for (adjacent_iterator ai(you.pos()); ai; ++ai)
+    {
+        if (feat_is_wall(env.grid(*ai)))
+            ++count;
+    }
+
+    you.props[CLAUSTROPHOBIA_KEY] = count * 2;
+}
+
 // Uskayaw piety decays incredibly fast, but only to a baseline level of *.
 // Using Uskayaw abilities can still take you under *.
 static void _handle_uskayaw_piety(int time_taken)
@@ -373,7 +412,7 @@ static void _handle_uskayaw_piety(int time_taken)
         gain_piety(piety_gain);
         you.props[USKAYAW_AUT_SINCE_PIETY_GAIN] = 0;
     }
-    else if (you.piety > piety_breakpoint(0))
+    else if (you.piety() > piety_breakpoint(0))
     {
         // If we didn't do a dance action and we can lose piety, we're going
         // to lose piety proportional to the time since the last time we took
@@ -385,7 +424,7 @@ static void _handle_uskayaw_piety(int time_taken)
         // piety, in order to give more tolerance for missing in combat.
         if (time_since_gain > 30)
         {
-            int piety_lost = min(you.piety - piety_breakpoint(0),
+            int piety_lost = min(you.piety() - piety_breakpoint(0),
                     div_rand_round(time_since_gain, 10));
 
             if (piety_lost > 0)
@@ -411,7 +450,7 @@ static void _handle_uskayaw_time(int time_taken)
     // need to trigger the abilities this turn. Otherwise we'll decrement the
     // timer down to a minimum of 0, at which point it becomes eligible to
     // trigger again.
-    if (audience_timer == -1 || (you.piety >= piety_breakpoint(2)
+    if (audience_timer == -1 || (you.piety() >= piety_breakpoint(2)
             && x_chance_in_y(time_taken, 100 + audience_timer)))
     {
         uskayaw_prepares_audience();
@@ -419,13 +458,44 @@ static void _handle_uskayaw_time(int time_taken)
     else
         you.props[USKAYAW_AUDIENCE_TIMER] = max(0, audience_timer - time_taken);
 
-    if (bond_timer == -1 || (you.piety >= piety_breakpoint(3)
+    if (bond_timer == -1 || (you.piety() >= piety_breakpoint(3)
             && x_chance_in_y(time_taken, 100 + bond_timer)))
     {
         uskayaw_bonds_audience();
     }
     else
         you.props[USKAYAW_BOND_TIMER] =  max(0, bond_timer - time_taken);
+}
+
+static void _handle_hoarding()
+{
+    const int potion_lv = you.get_mutation_level(MUT_HOARD_POTIONS);
+    if (potion_lv)
+    {
+        const int trigger_hp = potion_lv == 1 ? you.hp_max * 65 / 100
+                                              : you.hp_max * 4 / 10;
+
+        if (you.hp <= trigger_hp)
+            you.props.erase(HOARD_POTIONS_TIMER_KEY);
+        else if (!i_feel_safe(false, false, true))
+            you.props[HOARD_POTIONS_TIMER_KEY].get_int() = you.elapsed_time + 60;
+        else if (you.elapsed_time > you.props[HOARD_POTIONS_TIMER_KEY].get_int())
+            you.props.erase(HOARD_POTIONS_TIMER_KEY);
+    }
+
+    const int scroll_lv = you.get_mutation_level(MUT_HOARD_SCROLLS);
+    if (scroll_lv)
+    {
+        const int trigger_hp = scroll_lv == 1 ? you.hp_max * 65 / 100
+                                              : you.hp_max * 4 / 10;
+
+        if (you.hp <= trigger_hp)
+            you.props.erase(HOARD_SCROLLS_TIMER_KEY);
+        else if (!i_feel_safe(false, false, true))
+            you.props[HOARD_SCROLLS_TIMER_KEY].get_int() = you.elapsed_time + 60;
+        else if (you.elapsed_time > you.props[HOARD_SCROLLS_TIMER_KEY].get_int())
+            you.props.erase(HOARD_SCROLLS_TIMER_KEY);
+    }
 }
 
 /**
@@ -440,7 +510,7 @@ void player_reacts_to_monsters()
     check_monster_detect();
 
     if (have_passive(passive_t::detect_items) || you.has_mutation(MUT_JELLY_GROWTH)
-        || you.get_mutation_level(MUT_STRONG_NOSE) > 0)
+        || you.get_mutation_level(MUT_TREASURE_SENSE) > 0)
     {
         detect_items(-1);
     }
@@ -449,8 +519,7 @@ void player_reacts_to_monsters()
     _decrement_attraction(you.time_taken);
     _decrement_paralysis(you.time_taken);
     _decrement_petrification(you.time_taken);
-    if (_decrement_a_duration(DUR_SLEEP, you.time_taken))
-        you.wake_up(true);
+    _decrement_sleep_and_daze(you.time_taken);
 
     if (_decrement_a_duration(DUR_GRASPING_ROOTS, you.time_taken)
         && you.is_constricted())
@@ -470,6 +539,8 @@ void player_reacts_to_monsters()
     }
 
     _handle_jinxbite_interest();
+
+    sphinx_check_riddle();
 
     // If you have signalled your allies to stop attacking, cancel this order
     // once there are no longer any enemies in view for 50 consecutive aut
@@ -498,11 +569,21 @@ void player_reacts_to_monsters()
             you.duration[DUR_BLOOD_FOR_BLOOD] = 1;
     }
 
+    if (you.duration[DUR_STARDUST_COOLDOWN]
+        && you.magic_points == you.max_magic_points
+        && !there_are_monsters_nearby(true, true, false))
+    {
+        if (_decrement_a_duration(DUR_STARDUST_COOLDOWN, you.time_taken))
+            mprf(MSGCH_DURATION, "Your orb has finished recharging its magic.");
+    }
+
+
     if (_decrement_a_duration(DUR_PHALANX_BARRIER, you.time_taken))
         you.redraw_armour_class = true;
 
     _maybe_melt_armour();
     _update_cowardice();
+    _update_claustrophobia();
     if (you_worship(GOD_USKAYAW))
         _handle_uskayaw_time(you.time_taken);
 
@@ -516,6 +597,12 @@ void player_reacts_to_monsters()
         uncontrolled_blink(false, 3);
         ouch(roll_dice(2, 2), KILLED_BY_BLINKING);
     }
+
+    _decrement_a_duration(DUR_AUTODODGE, you.time_taken);
+
+    _handle_hoarding();
+
+    you.props.erase(PYROMANIA_TRIGGERED_KEY);
 }
 
 static bool _check_recite()
@@ -584,13 +671,12 @@ static void _try_to_respawn_ancestor()
     mprf("%s emerges from the mists of memory!",
          ancestor->name(DESC_YOUR).c_str());
     add_companion(ancestor);
-    check_place_cloud(CLOUD_MIST, ancestor->pos(), random_range(1,2),
-                      ancestor); // ;)
+    place_cloud(CLOUD_MIST, ancestor->pos(), random_range(1,2), ancestor); // ;)
 }
 
 static void _decrement_transform_duration(int delay)
 {
-    if (you.form == you.default_form)
+    if (you.form == you.default_form || you.form == transformation::flux)
         return;
 
     // FIXME: [ds] Remove this once we've ensured durations can never go < 0?
@@ -715,7 +801,7 @@ static void _decrement_durations()
     // (killing monsters, offering items, ...) might be confusing for characters
     // of other religions.
     // For now, though, keep information about what happened hidden.
-    if (you.piety < MAX_PIETY && you.duration[DUR_PIETY_POOL] > 0
+    if (you.raw_piety < MAX_PIETY && you.duration[DUR_PIETY_POOL] > 0
         && one_chance_in(5))
     {
         you.duration[DUR_PIETY_POOL]--;
@@ -827,7 +913,7 @@ static void _decrement_durations()
                 heal_flayed_effect(&you);
         }
         else if (you.duration[DUR_FLAYED] < 80)
-            you.duration[DUR_FLAYED] += div_rand_round(50, delay);
+            you.duration[DUR_FLAYED] += div_rand_round(delay, 2);
     }
 
     if (you.duration[DUR_TOXIC_RADIANCE])
@@ -853,8 +939,8 @@ static void _decrement_durations()
     if (you.duration[DUR_INFERNAL_LEGION])
         makhleb_infernal_legion_tick(delay);
 
-    if (you.duration[DUR_DOOM_HOWL])
-        doom_howl(min(delay, you.duration[DUR_DOOM_HOWL]));
+    if (you.duration[DUR_OBLIVION_HOWL])
+        oblivion_howl(min(delay, you.duration[DUR_OBLIVION_HOWL]));
 
     dec_elixir_player(delay);
     dec_frozen_ramparts(delay);
@@ -867,11 +953,24 @@ static void _decrement_durations()
                 you.berserk() ? "rip and tear" : "carefully extract").c_str());
     }
 
+    if (you.wearing_jewellery(AMU_WILDSHAPE))
+        did_god_conduct(DID_CHAOS, 1);
+
+    if (you.wearing_ego(OBJ_ARMOUR, SPARM_DEATH))
+        did_god_conduct(DID_EVIL, 1);
+
     if (!you.duration[DUR_ANCESTOR_DELAY]
         && have_passive(passive_t::frail)
         && hepliaklqana_ancestor() == MID_NOBODY)
     {
         _try_to_respawn_ancestor();
+    }
+
+    if (you.form == transformation::sun_scarab
+        && !get_solar_ember()
+        && you.elapsed_time >= you.props[SOLAR_EMBER_REVIVAL_KEY].get_int())
+    {
+        sun_scarab_spawn_ember(false);
     }
 
     const bool sanguine_armour_is_valid = sanguine_armour_valid();
@@ -962,6 +1061,7 @@ void maybe_attune_regen_items(bool attune_regen, bool attune_mana_regen)
 
     bool gained_regen = false;
     bool gained_mana_regen = false;
+    bool gained_alchemy = false;
 
     for (player_equip_entry& entry : you.equipment.items)
     {
@@ -977,7 +1077,9 @@ void maybe_attune_regen_items(bool attune_regen, bool attune_mana_regen)
             // Track which properties we should notify the player they have gained.
             if (!gained_regen && is_regen_item(arm))
                 gained_regen = true;
-            if (!gained_mana_regen && is_mana_regen_item(arm))
+            if (arm.is_type(OBJ_JEWELLERY, AMU_ALCHEMY))
+                gained_alchemy = true;
+            else if (!gained_mana_regen && is_mana_regen_item(arm))
                 gained_mana_regen = true;
 
             eq_list.push_back(is_artefact(arm) ? get_artefact_name(arm) :
@@ -993,14 +1095,23 @@ void maybe_attune_regen_items(bool attune_regen, bool attune_mana_regen)
     if (eq_list.empty())
         return;
 
-    const char* msg = (gained_regen && gained_mana_regen) ? " health and magic"
-                       : (gained_regen ? "" : " magic");
+    vector<string> msgs;
+
+    if (gained_regen || gained_mana_regen)
+    {
+        msgs.emplace_back(make_stringf("regenerate%s more quickly",
+                gained_regen && gained_mana_regen ? " health and magic"
+                : (gained_regen ? "" : " magic")));
+    }
+    if (gained_alchemy)
+        msgs.emplace_back("extract magic from the potions you drink");
 
     plural = plural || eq_list.size() > 1;
     string eq_str = comma_separated_line(eq_list.begin(), eq_list.end());
-    mprf("Your %s attune%s to your body, and you begin to regenerate%s "
-         "more quickly.", eq_str.c_str(), plural ? " themselves" : "s itself",
-         msg);
+    string msg_str = comma_separated_line(msgs.begin(), msgs.end());
+    mprf("Your %s attune%s to your body, and you begin to %s.",
+         eq_str.c_str(), plural ? " themselves" : "s itself",
+         msg_str.c_str());
 }
 
 // cjo: Handles player hp and mp regeneration. If the counter
@@ -1158,6 +1269,9 @@ void player_reacts()
     if (you.duration[DUR_SPIKE_LAUNCHER_ACTIVE])
         handle_spike_launcher(you.time_taken);
 
+    if (you.duration[DUR_RIME_YAK_AURA])
+        frigid_walls_damage(you.time_taken);
+
     _decrement_durations();
 
     // Translocations and possibly other duration decrements can
@@ -1184,6 +1298,18 @@ void player_reacts()
             mprf(MSGCH_DURATION, "Your time-warped blood is ready to ripple again.");
 
         you.duration[DUR_TIME_WARPED_BLOOD_COOLDOWN] = 0;
+    }
+
+    if (you.duration[DUR_HIVE_COOLDOWN] && you.hp == you.hp_max)
+    {
+        mprf(MSGCH_DURATION, "The buzzing within you returns to its normal rhythm.");
+        you.duration[DUR_HIVE_COOLDOWN] = 0;
+    }
+
+    if (you.duration[DUR_MEDUSA_COOLDOWN] && you.hp == you.hp_max)
+    {
+        mprf(MSGCH_DURATION, "You feel your defenses recover.");
+        you.duration[DUR_MEDUSA_COOLDOWN] = 0;
     }
 
     if (you.duration[DUR_POISONING])

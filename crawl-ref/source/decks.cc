@@ -1164,7 +1164,7 @@ static void _damaging_card(card_type card, int power,
     // Confirm aborts as they waste the card.
     prompt = make_stringf("Aiming: %s", card_name(card));
     while (!(spell_direction(target, beam, &args)
-            && player_tracer(ZAP_DEBUGGING_RAY, power/6, beam)))
+            && player_tracer(ZAP_SEARING_RAY, power/6, beam)))
     {
         if (crawl_state.seen_hups
             || yesno("Really abort (and waste the card)?", false, 0))
@@ -1177,13 +1177,13 @@ static void _damaging_card(card_type card, int power,
 
     if (ztype == ZAP_IOOD)
     {
-        if (power_level == 1)
+        if (power_level == 0)
         {
-            cast_iood(&you, power/6, &beam, 0, 0,
+            cast_iood(&you, power/10, &beam, 0, 0,
                       env.mgrid(beam.target), false, false);
         }
         else
-            cast_iood_burst(power/6, beam.target);
+            cast_iood_burst(power/6, power_level, beam.target);
     }
     else
         zapping(ztype, power/6, beam);
@@ -1474,7 +1474,7 @@ static void _storm_card(int power)
     int valid_targets = 0;
     for (radius_iterator ri(you.pos(), LOS_NO_TRANS, true); ri; ++ri)
     {
-        if (grid_distance(*ri, you.pos()) > 3 && !cell_is_solid(*ri))
+        if (grid_distance(*ri, you.pos()) > 3 && !cell_is_invalid_target(*ri))
         {
             ++valid_targets;
             for (int i = 0; i < max_explosions; ++i)
@@ -1566,8 +1566,7 @@ static void _degeneration_card(int power)
                }
                else
                {
-                   const int daze_time = (5 + 5 * power_level) * BASELINE_DELAY;
-                   mons.add_ench(mon_enchant(ENCH_DAZED, 0, &you, daze_time));
+                   mons.daze(2 + 3 * power_level);
                    simple_monster_message(mons,
                                           " is dazed by the mutagenic energy.");
                }
@@ -1647,11 +1646,11 @@ static int _card_power(bool punishment)
     if (punishment)
         return you.experience_level * 18;
 
-    int result = you.piety;
+    int result = you.piety();
     result *= you.skill(SK_INVOCATIONS, 100) + 2500;
     result /= 2700;
     result += you.skill(SK_INVOCATIONS, 9);
-    result += (you.piety * 3) / 2;
+    result += (you.piety() * 3) / 2;
 
     return result;
 }
@@ -1707,7 +1706,7 @@ void card_effect(card_type which_card,
         break;
 
     case CARD_SWINE:
-        if (transform(5 + power/10 + random2(power/10), transformation::pig, true))
+        if (transform(roll_dice(10, 10), transformation::pig, true))
             you.transform_uncancellable = true;
         else
             mpr("You feel a momentary urge to oink.");

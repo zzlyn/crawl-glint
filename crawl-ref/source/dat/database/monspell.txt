@@ -446,6 +446,10 @@ Woodweal cast
 Seismic Stomp cast
 
 @The_monster@ stomps @possessive@ heavy feet.
+%%%%
+Hurl Torchlight cast
+
+@The_monster@ raises the black torch.
 ########################################################################
 # Unique monsters
 ########################################################################
@@ -466,6 +470,10 @@ March of Sorrows Boris cast
 
 w:5
 @The_monster@ rolls out @possessive@ victims' [laments|suffering].
+%%%%
+Doomsaying Cassandra cast
+
+@The_monster@ says, "I have seen your future, @player_name@! Turn back before you are forced to see it for yourself!"
 %%%%
 Cantrip Dissolution cast
 
@@ -647,6 +655,10 @@ basilisk cast
 
 @floating eye cast@
 %%%%
+bes kemwar cast
+
+@The_monster@ writhes about, and something writhes within @target@.
+%%%%
 Airstrike blizzard demon cast
 
 @The_monster@ lashes out with icy intensity.
@@ -671,6 +683,10 @@ bombardier beetle cast
 
 @The_monster@ sprays incendiary fluid @at@ @target@.
 %%%%
+March of Sorrows bone dragon cast
+
+@The_monster@ breathes [collective despair|endless sorrows] @at@ @target@.
+%%%%
 brain worm cast
 
 @The_monster_possessive@ bulging head throbs.
@@ -685,11 +701,26 @@ Battlecry cherub cast
 
 @The_monster@ sings a powerful hymn!
 %%%%
+Beckoning Gale chonchon cast
+
+@The_monster@ chants while flapping @possessive@ wings @at@ @target@.
+
+w:5
+@The_monster@ screeches @at@ @target@ while spinning and swirling.
+%%%%
+cognitogaunt cast
+
+@The_monster@ glimmers violently.
+%%%%
+clockroach cast
+
+@The_monster@ sprays sand from its hourglass @at@ @target@.
+%%%%
 crystal echidna cast targeted
 
 @The_monster@ flicks its quills @at@ @target@.
 %%%%
-Crystallizing Shot crystal guardian cast
+Crystallising Shot crystal guardian cast
 
 @The_monster@ fires a shard of @reflexive@ @at@ @target@.
 %%%%
@@ -796,6 +827,14 @@ Fireball hell hog cast
 
 @The_monster@ breathes @beam@ @at@ @target@.
 %%%%
+Beckoning Gale hippogriff cast
+
+@The_monster@ flaps @possessive@ wings @at@ @target@.
+%%%%
+Warning Cry hippogriff cast
+
+@The_monster@ screeches a warning cry!
+%%%%
 unseen Warning Cry howler monkey cast
 
 You hear a tremendous hooting and howling!
@@ -811,6 +850,16 @@ Strange energies crackle from @the_monster_possessive@ apparatus.
 kobold blastminer cast targeted
 
 @The_monster@ blasts @possessive@ cannon @at@ @target@.
+%%%%
+Awaken Flesh kobold fleshcrafter cast
+
+@The_monster@ cackles and gestures.
+
+@The_monster@ chants and writhes.
+%%%%
+Bolt of Flesh kobold fleshcrafter cast
+
+@The_monster@ weaves a wave of flesh @at@ @target@.
 %%%%
 laughing skull cast
 
@@ -860,6 +909,26 @@ orb of fire cast
 
 @The_monster@ emits a lurid red light.
 %%%%
+orb of entropy cast
+
+w:20
+@The_monster@ [pulses|vibrates].
+
+@The_monster@ gnaws at the world.
+
+@The_monster@ eats away at reality.
+
+Existence decays around @the_monster@.
+%%%%
+orb of winter cast
+
+@The_monster@ glitters with frost.
+
+@The_monster@ swirls like a blizzard.
+
+w:30
+@The_monster@ glows [icy blue|with a pale light|sapphire].
+%%%%
 obsidian statue cast
 
 @The_monster_possessive@ eyes glow briefly.
@@ -903,6 +972,16 @@ Cause Fear satyr cast
 Sleep satyr cast
 
 @The_monster@ plays a lulling melody on @possessive@ pipes!
+%%%%
+Injury Mirror screaming refraction cast
+
+@The_monster@ shines with woeful anguish.
+
+@The_monster@ rattles its vertebrae in radiant agony.
+%%%%
+Lee's Rapid Deconstruction screaming refraction cast
+
+An echo of @the_monster@ flickers and hopelessly wails @at@ @target@.
 %%%%
 scrub nettle cast targeted
 
@@ -974,6 +1053,10 @@ You hear a violent whirl.
 thrashing horror cast
 
 @The_monster@ churns violently!
+%%%%
+undertaker cast targeted
+
+@The_monster@ reaches out for @target@.
 %%%%
 Flashing Balestra undying armoury cast
 
@@ -1057,6 +1140,10 @@ Dominate Undead vampire bloodprince cast
 
 @The_monster@ whispers, "Kneel."
 %%%%
+Manifold Assault natural cast
+
+@The_monster@ seems to occupy many places at once.
+%%%%
 ########################################################################
 # Monster species and genus messages.
 ########################################################################
@@ -1099,6 +1186,26 @@ You feel something staring at you. @player_only@
 living spell cast
 
 @The_monster@ casts @reflexive@ @at@ @target@.
+%%%%
+raven cast
+
+@The_monster@ stares into @foe_possessive@ soul.
+%%%%
+malmutate zykzyl cast
+
+@The_monster@ seethes with envy of @foe_possessive@ form.
+%%%%
+enfeeble zykzyl cast
+
+@The_monster@ overflows with resentment.
+%%%%
+bolt of flesh zykzyl cast
+
+@The_monster@ hurls a piece of @reflexive@ @at@ @target@.
+%%%%
+ostracise cast
+
+@The_monster@ freezes your soul cold.
 %%%%
 ###########################################################################
 # Generic messages for priests and wizards which have been polymorphed into

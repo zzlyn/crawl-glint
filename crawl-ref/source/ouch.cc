@@ -66,10 +66,12 @@
 #include "spl-clouds.h"
 #include "spl-damage.h"
 #include "spl-goditem.h"
+#include "spl-monench.h"
 #include "spl-selfench.h"
 #include "state.h"
 #include "stringutil.h"
 #include "teleport.h"
+#include "terrain.h"
 #include "transform.h"
 #include "tutorial.h"
 #include "view.h"
@@ -297,8 +299,8 @@ int check_your_resists(int hurted, beam_type flavour, string source,
         break;
 
     case BEAM_UMBRAL_TORCHLIGHT:
-        if (you.holiness() & ~(MH_NATURAL | MH_DEMONIC | MH_HOLY)
-            || beam->agent(true)->is_player())
+        if (you_worship(GOD_YREDELEMNUL)
+            || you.holiness() & ~(MH_NATURAL | MH_DEMONIC | MH_HOLY))
         {
             hurted = 0;
         }
@@ -322,6 +324,8 @@ int check_your_resists(int hurted, beam_type flavour, string source,
         {
             if (you.is_insubstantial() || you.is_amorphous())
                 mpr("The bolas passes through you!");
+            else if (you.unrand_equipped(UNRAND_SLICK_SLIPPERS))
+                mpr("You slip free of the bolas.");
             else
             {
                 you.set_duration(DUR_NO_MOMENTUM, random_range(4, 8), 0,
@@ -369,10 +373,73 @@ void expose_player_to_element(beam_type flavour, int strength, bool slow_cold_bl
         you.slow_down(0, strength);
     }
 
+    if ((flavour == BEAM_FIRE || flavour == BEAM_LAVA
+         || flavour == BEAM_STICKY_FLAME || flavour == BEAM_STEAM)
+        && you.has_bane(BANE_HEATSTROKE))
+    {
+        int chance = 40;
+        const int rF = you.res_fire();
+        if (rF < 0)
+            chance = chance * 3 / 2;
+        else
+            chance = chance / (rF + 1);
+
+        if (x_chance_in_y(chance, 100))
+        {
+            mprf(MSGCH_WARN, "The heat overwhelms you.");
+            you.slow_down(0, random_range(4, 8));
+        }
+    }
+
+    if ((flavour == BEAM_COLD || flavour == BEAM_ICE)
+        && you.has_bane(BANE_SNOW_BLINDNESS))
+    {
+        int chance = 40;
+        const int rC = you.res_cold();
+        if (rC < 0)
+            chance = chance * 3 / 2;
+        else
+            chance = chance / (rC + 1);
+
+        if (x_chance_in_y(chance, 100))
+        {
+            mprf(MSGCH_WARN, "The cold chills your senses.");
+            const int dur = random_range(5, 10);
+            blind_player(dur, LIGHTBLUE);
+            you.increase_duration(DUR_WEAK, dur, 50);
+        }
+    }
+
+    if ((flavour == BEAM_ELECTRICITY || flavour == BEAM_THUNDER
+         || flavour == BEAM_STUN_BOLT)
+        && you.has_bane(BANE_ELECTROSPASM))
+    {
+        int chance = 30;
+        const int rElec = you.res_elec();
+        if (rElec < 0)
+            chance = chance * 3 / 2;
+        else
+            chance = chance / (rElec + 1);
+
+        if (x_chance_in_y(chance, 100))
+        {
+            mprf(MSGCH_WARN, "The electricity makes your body seize.");
+            you.increase_duration(DUR_NO_MOMENTUM, random_range(3, 7), 10);
+        }
+    }
+
     if (flavour == BEAM_WATER && you.duration[DUR_STICKY_FLAME])
     {
         mprf(MSGCH_WARN, "The flames go out!");
         end_sticky_flame_player();
+    }
+
+    if (you.form == transformation::aqua
+        && get_beam_resist_type(flavour) == BEAM_COLD && coinflip())
+    {
+        if (!you.duration[DUR_FROZEN])
+            mpr("Your body starts to freeze solid!");
+        you.increase_duration(DUR_FROZEN, random_range(5, 10), 50);
     }
 }
 
@@ -689,10 +756,10 @@ void _maybe_blood_hastes_allies()
 static void _maybe_spawn_monsters(int dam, kill_method_type death_type,
                                   mid_t death_source)
 {
-    monster* damager = monster_by_mid(death_source);
+    monster* damager = monster_by_mid(death_source, true);
     // We need to exclude acid damage and similar things or this function
     // will crash later.
-    if (!damager || death_source == MID_YOU_FAULTLESS)
+    if (!damager)
         return;
 
     monster_type mon;
@@ -734,7 +801,7 @@ static void _maybe_spawn_monsters(int dam, kill_method_type death_type,
             if (mon == MONS_BUTTERFLY)
             {
                 mprf(MSGCH_GOD, "A shower of butterflies erupts from you!");
-                take_note(Note(NOTE_XOM_EFFECT, you.piety, -1, "butterfly on damage"), true);
+                take_note(Note(NOTE_XOM_EFFECT, you.raw_piety, -1, "butterfly on damage"), true);
             }
             else
             {
@@ -789,8 +856,120 @@ static void _maybe_fog(int dam)
     {
         mprf(MSGCH_GOD, "You emit a cloud of colourful smoke!");
         big_cloud(CLOUD_XOM_TRAIL, &you, you.pos(), 50, 4 + random2(5), -1);
-        take_note(Note(NOTE_XOM_EFFECT, you.piety, -1, "smoke on damage"), true);
+        take_note(Note(NOTE_XOM_EFFECT, you.raw_piety, -1, "smoke on damage"), true);
     }
+}
+
+static void _maybe_splash_water(int dam)
+{
+    if (you.form != transformation::aqua)
+        return;
+
+    const int percent = dam * 100 / you.hp_max;
+
+    if (percent < 10 && !one_chance_in(percent))
+        return;
+
+    // Assume the player can fill 25 tiles will all their hp (with some randomisation).
+    int water = div_rand_round(percent, 2);
+
+    if (water == 0)
+        return;
+
+    vector<coord_def> spots;
+    for (distance_iterator di(you.pos(), true, false, 3); di; ++di)
+    {
+        if (you.see_cell_no_trans(*di)
+            && feat_has_dry_floor(env.grid(*di))
+            && !feat_is_critical(env.grid(*di)))
+        {
+            spots.push_back(*di);
+        }
+    }
+
+    // spots is neatly ordered from player->outwards. random_spots is completely
+    // randomized. We mostly pick from spots, with a smaller chance to pick from
+    // random spots, so that the splash tends to build outward from the player,
+    // but slightly unevenly.
+    vector<coord_def> random_spots = spots;
+    shuffle_array(random_spots);
+
+    water = min(water, (int)spots.size());
+
+    if (water == 0)
+        return;
+
+    mpr("You splash onto the ground.");
+    for (int i = 0; i < water; ++i)
+    {
+        const coord_def pos = one_chance_in(3) ? random_spots[i] : spots[i];
+        temp_change_terrain(pos, DNGN_SHALLOW_WATER, random_range(80, 110),
+                            TERRAIN_CHANGE_AQUA_FORM, MID_PLAYER);
+    }
+}
+
+static void _maybe_hive_swarm()
+{
+    if (you.form != transformation::hive
+        || you.allies_forbidden()
+        || you.hp * 2 > you.hp_max
+        || you.duration[DUR_HIVE_COOLDOWN])
+    {
+        return;
+    }
+
+    mgen_data mg(MONS_KILLER_BEE, BEH_FRIENDLY, you.pos(), MHITYOU, MG_FORCE_BEH | MG_AUTOFOE);
+    mg.set_summoned(&you, MON_SUMM_HIVE, random_range(12, 18) * BASELINE_DELAY, false).set_range(1, 3);
+    mg.hd = 5;
+
+    const int num = div_rand_round(get_form()->get_effect_size(), 10);
+    bool made_mon = false;
+    for (int i = 0; i < num; ++i)
+    {
+        if (monster *swarmer = create_monster(mg))
+        {
+            made_mon = true;
+            swarmer->add_ench(ENCH_BERSERK);
+            swarmer->add_ench(ENCH_CONCENTRATE_VENOM);
+        }
+    }
+
+    if (made_mon)
+    {
+        mpr("Angry insects swarm out of your body to defend their hive!");
+        you.duration[DUR_HIVE_COOLDOWN] = 1;
+    }
+}
+
+static void _maybe_medusa_lithotoxin()
+{
+    if (you.form != transformation::medusa
+        || you.hp * 10 > you.hp_max * 6
+        || you.duration[DUR_MEDUSA_COOLDOWN])
+    {
+        return;
+    }
+
+    vector<monster*> targs;
+    for (radius_iterator ri(you.pos(), 3, C_SQUARE, LOS_NO_TRANS, true); ri; ++ri)
+        if (monster* mon = monster_at(*ri))
+            if (!mon->wont_attack() && mon->has_ench(ENCH_POISON))
+                targs.push_back(mon);
+
+    if (targs.empty())
+        return;
+
+    draw_ring_animation(you.pos(), 3, LIGHTGREY, 0U, true, 25);
+    mprf("Your pain echoes through the poison around you!");
+    for (monster* targ : targs)
+    {
+        if (x_chance_in_y(get_form()->get_effect_chance(), 100))
+            targ->petrify(&you);
+        else
+            simple_monster_message(*targ, " resists.");
+    }
+
+    you.duration[DUR_MEDUSA_COOLDOWN] = 1;
 }
 
 static void _handle_poor_constitution(int dam)
@@ -843,29 +1022,14 @@ static void _maybe_silence()
     if (x_chance_in_y(silence_sources, 100))
         silence_player(4 + random2(7));
 }
-/**
- * Maybe disable scrolls after taking damage if the player has MUT_READ_SAFETY.
- **/
-static void _maybe_disable_scrolls()
-{
-    int mut_level = you.get_mutation_level(MUT_READ_SAFETY);
-    if (mut_level && !you.duration[DUR_NO_SCROLLS] && x_chance_in_y(mut_level, 100))
-    {
-        mpr("You feel threatened and lose the ability to read scrolls!");
-        you.increase_duration(DUR_NO_SCROLLS, 10 + random2(5));
-    }
-}
 
-/**
- * Maybe disable potions after taking damage if the player has MUT_DRINK_SAFETY.
- **/
-static void _maybe_disable_potions()
+static void _maybe_get_vitrified(mid_t source)
 {
-    int mut_level = you.get_mutation_level(MUT_DRINK_SAFETY);
-    if (mut_level && !you.duration[DUR_NO_POTIONS] && x_chance_in_y(mut_level, 100))
+    monster* mon = monster_by_mid(source);
+    if (mon && mon->wearing_ego(OBJ_ARMOUR, SPARM_GLASS)
+        && x_chance_in_y(40 + mon->get_hit_dice() * 5, 500))
     {
-        mpr("You feel threatened and lose the ability to drink potions!");
-        you.increase_duration(DUR_NO_POTIONS, 10 + random2(5));
+        you.vitrify(mon, 4 + random2(5 + mon->get_hit_dice()));
     }
 }
 
@@ -1236,6 +1400,9 @@ void ouch(int dam, kill_method_type death_type, mid_t source, const char *aux,
             _maybe_blood_hastes_allies();
             _powered_by_pain(dam);
             makhleb_celebrant_bloodrite();
+            _maybe_splash_water(dam);
+            _maybe_hive_swarm();
+            _maybe_medusa_lithotoxin();
             if (sanguine_armour_valid())
                 activate_sanguine_armour();
             refresh_meek_bonus();
@@ -1244,11 +1411,11 @@ void ouch(int dam, kill_method_type death_type, mid_t source, const char *aux,
                 _maybe_corrode();
                 _maybe_slow();
                 _maybe_silence();
-                _maybe_disable_scrolls();
-                _maybe_disable_potions();
             }
             if (drain_amount > 0)
                 drain_player(drain_amount, true, true);
+
+            _maybe_get_vitrified(source);
         }
         if (you.hp > 0)
             return;

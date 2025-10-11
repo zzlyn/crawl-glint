@@ -276,6 +276,8 @@ static tileidx_t _random_trousers()
 
 void fill_doll_equipment(dolls_data &result)
 {
+    tileidx_t ch;
+
     // Equipment-using forms
     switch (you.form)
     {
@@ -288,22 +290,109 @@ void fill_doll_equipment(dolls_data &result)
         result.parts[TILEP_PART_LEG]     = 0;
         result.parts[TILEP_PART_SHADOW]  = 0;
         break;
-    case transformation::beast:
+    case transformation::quill:
+        result.parts[TILEP_PART_HAIR] = 0;
+        if (you.species == SP_FELID)
+            result.parts[TILEP_PART_BASE] = TILEP_TRAN_QUILL_FELID;
+        else if (you.species == SP_OCTOPODE)
+            result.parts[TILEP_PART_BASE] = TILEP_TRAN_QUILL_OCTOPODE;
+        else
+        {
+            switch (you.species)
+            {
+            case SP_OCTOPODE:   ch = TILEP_TRAN_QUILL_OCTOPODE;  break;
+            case SP_FELID:      ch = TILEP_TRAN_QUILL_FELID;     break;
+            case SP_ARMATAUR:   ch = TILEP_BODY_QUILL_ARMATAUR;  break;
+            case SP_DJINNI:     ch = TILEP_BODY_QUILL_DJINN;     break;
+            case SP_GARGOYLE:   ch = TILEP_BODY_QUILL_GARGOYLE;  break;
+            case SP_NAGA:       ch = TILEP_BODY_QUILL_NAGA;      break;
+            default:            ch = TILEP_BODY_QUILL_HUMANOID;  break;
+            }
+            result.parts[TILEP_PART_LEG] = 0;
+            result.parts[TILEP_PART_HELM] = ch;
+        }
+        break;
+    case transformation::aqua:
         switch (you.species)
         {
-        case SP_ARMATAUR:
-        case SP_NAGA:
-        case SP_FELID:
+        case SP_ARMATAUR:   ch = TILEP_TRAN_AQUA_ARMATAUR;  break;
+        case SP_DJINNI:     ch = TILEP_TRAN_AQUA_DJINN;     break;
+        case SP_GARGOYLE:   ch = TILEP_TRAN_AQUA_GARGOYLE;  break;
+        case SP_NAGA:       ch = TILEP_TRAN_AQUA_NAGA;      break;
+        case SP_FELID:      ch = TILEP_TRAN_AQUA_FELID;     break;
+        case SP_OCTOPODE:   ch = TILEP_TRAN_AQUA_OCTOPODE;  break;
+        default:            ch = TILEP_TRAN_AQUA_HUMANOID;  break;
+        }
+        result.parts[TILEP_PART_BASE]    = ch;
+        result.parts[TILEP_PART_HAIR]    = 0;
+        break;
+    case transformation::werewolf:
+        switch (you.species)
+        {
+        case SP_ARMATAUR:   ch = TILEP_TRAN_WEREWOLF_ARMATAUR;  break;
+        case SP_DJINNI:     ch = TILEP_TRAN_WEREWOLF_DJINN;     break;
+        case SP_GARGOYLE:   ch = TILEP_TRAN_WEREWOLF_GARGOYLE;  break;
+        case SP_NAGA:       ch = TILEP_TRAN_WEREWOLF_NAGA;      break;
+        case SP_FELID:      ch = TILEP_TRAN_WEREWOLF_FELID;     break;
+        case SP_OCTOPODE:   ch = TILEP_TRAN_WEREWOLF_OCTOPODE;  break;
+        default:            ch = TILEP_TRAN_WEREWOLF_HUMANOID;  break;
+        }
+        result.parts[TILEP_PART_BASE]    = ch;
+        result.parts[TILEP_PART_HAIR]    = 0;
+        result.parts[TILEP_PART_LEG]     = 0;
+        break;
+    case transformation::flux:
+        switch (you.species)
+        {
         case SP_OCTOPODE:
-        case SP_DJINNI:  break;
+            result.parts[TILEP_PART_BASE] = TILEP_TRAN_FLUX_OCTOPODE;
+            result.parts[TILEP_PART_HAIR] = 0;
+            break;
+        case SP_FELID:
+            result.parts[TILEP_PART_BASE] = TILEP_TRAN_FLUX_FELID;
+            result.parts[TILEP_PART_HAIR] = 0;
+            break;
         default:
-            result.parts[TILEP_PART_BASE] = TILEP_TRAN_BEAST;
-            result.parts[TILEP_PART_LEG]     = 0;
+            result.parts[TILEP_PART_BODY] = TILEP_TRAN_FLUX_HUMANOID;
             break;
         }
         break;
+    case transformation::hive:
+        switch (you.species)
+        {
+        case SP_OCTOPODE:
+            result.parts[TILEP_PART_BASE] = TILEP_TRAN_HIVE_OCTOPODE;
+            break;
+        case SP_FELID:
+            result.parts[TILEP_PART_BASE] = TILEP_TRAN_HIVE_FELID;
+            break;
+        default:
+            result.parts[TILEP_PART_BODY] = TILEP_BODY_HIVE_FORM;
+            break;
+        }
+        result.parts[TILEP_PART_HAIR] = 0;
+        break;
+    case transformation::medusa:
+        switch (you.species)
+        {
+        case SP_OCTOPODE:
+            result.parts[TILEP_PART_BASE] = TILEP_TRAN_MEDUSA_OCTOPODE;
+            break;
+        case SP_FELID:
+            result.parts[TILEP_PART_BASE] = TILEP_TRAN_MEDUSA_FELID;
+            break;
+        case SP_ARMATAUR:
+            result.parts[TILEP_PART_HELM] = TILEP_HELM_MEDUSA_FORM_ARMATAUR;
+            result.parts[TILEP_PART_CLOAK] = TILEP_CLOAK_MEDUSA_FORM_ARMATAUR;
+            break;
+        default:
+            result.parts[TILEP_PART_HELM] = TILEP_HELM_MEDUSA_FORM_HUMANOID;
+            result.parts[TILEP_PART_CLOAK] = TILEP_CLOAK_MEDUSA_FORM_HUMANOID;
+            break;
+        }
+        result.parts[TILEP_PART_HAIR] = 0;
+        break;
     case transformation::statue:
-        tileidx_t ch;
         switch (you.species)
         {
 #if TAG_MAJOR_VERSION == 34
@@ -345,12 +434,13 @@ void fill_doll_equipment(dolls_data &result)
 #if TAG_MAJOR_VERSION == 34
         case SP_CENTAUR:
 #endif
-        case SP_ARMATAUR: ch = TILEP_TRAN_LICH_ARMATAUR;  break;
-        case SP_NAGA:    ch = TILEP_TRAN_LICH_NAGA;     break;
-        case SP_FELID:   ch = TILEP_TRAN_LICH_FELID;    break;
-        case SP_OCTOPODE:ch = TILEP_TRAN_LICH_OCTOPODE; break;
-        case SP_DJINNI:  ch = TILEP_TRAN_LICH_DJINN;    break;
-        default:         ch = TILEP_TRAN_LICH_HUMANOID; break;
+        case SP_ARMATAUR:  ch = TILEP_TRAN_LICH_ARMATAUR;  break;
+        case SP_DJINNI:    ch = TILEP_TRAN_LICH_DJINN;     break;
+        case SP_GARGOYLE:  ch = TILEP_TRAN_LICH_GARGOYLE;  break;
+        case SP_NAGA:      ch = TILEP_TRAN_LICH_NAGA;      break;
+        case SP_FELID:     ch = TILEP_TRAN_LICH_FELID;     break;
+        case SP_OCTOPODE:  ch = TILEP_TRAN_LICH_OCTOPODE;  break;
+        default:           ch = TILEP_TRAN_LICH_HUMANOID;  break;
         }
         result.parts[TILEP_PART_BASE]    = ch;
         result.parts[TILEP_PART_HAIR]    = 0;
@@ -371,11 +461,12 @@ void fill_doll_equipment(dolls_data &result)
         case SP_CENTAUR:
 #endif
         case SP_ARMATAUR:   ch = TILEP_TRAN_VAMPIRE_ARMATAUR;   break;
+        case SP_DJINNI:     ch = TILEP_TRAN_VAMPIRE_DJINN;      break;
+        case SP_GARGOYLE:   ch = TILEP_TRAN_VAMPIRE_GARGOYLE;   break;
         case SP_NAGA:       ch = TILEP_TRAN_VAMPIRE_NAGA;       break;
+        case SP_TENGU:      ch = TILEP_TRAN_VAMPIRE_TENGU;      break;
         case SP_FELID:      ch = TILEP_TRAN_VAMPIRE_FELID;      break;
         case SP_OCTOPODE:   ch = TILEP_TRAN_VAMPIRE_OCTOPODE;   break;
-        case SP_DJINNI:     ch = TILEP_TRAN_VAMPIRE_DJINN;      break;
-        case SP_TENGU:      ch = TILEP_TRAN_VAMPIRE_TENGU;      break;
         default:            ch = TILEP_TRAN_VAMPIRE;            break;
         }
         result.parts[TILEP_PART_BASE]    = ch;
@@ -404,6 +495,18 @@ void fill_doll_equipment(dolls_data &result)
             result.parts[TILEP_PART_CLOAK]   = 0;
         }
         break;
+    }
+
+    // XXX: The checks to hide pants per-species fail if they're not using a
+    //      normal base species tile. But no form is going to *give* them pants,
+    //      surely, so remind them they shouldn't have any.
+    if (you.species == SP_FELID
+        || you.species == SP_OCTOPODE
+        || you.species == SP_DJINNI
+        || you.species == SP_ARMATAUR
+        || you.species == SP_NAGA)
+    {
+        result.parts[TILEP_PART_LEG] = 0;
     }
 
     // Base tile.
@@ -621,7 +724,7 @@ void fill_doll_for_newgame(dolls_data &result, const newgame_def& ng)
     give_basic_mutations(you.species);
     give_items_skills(ng);
 
-    for (int i = 0; i < ENDOFPACK; ++i)
+    for (int i = 0; i < MAX_GEAR; ++i)
     {
         auto &item = you.inv[i];
         if (item.defined())

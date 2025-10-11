@@ -361,10 +361,20 @@ unsigned int item_value(item_def item, bool ident)
                 valued += 250;
                 break;
 
+            case SPARM_ICE:
+            case SPARM_FIRE:
+            case SPARM_AIR:
+            case SPARM_EARTH:
+                valued += 100;
+
             case SPARM_COLD_RESISTANCE:
             case SPARM_DEXTERITY:
             case SPARM_FIRE_RESISTANCE:
             case SPARM_SEE_INVISIBLE:
+            case SPARM_SNIPING:
+            case SPARM_COMMAND:
+            case SPARM_DEATH:
+            case SPARM_RESONANCE:
             case SPARM_INTELLIGENCE:
             case SPARM_FLYING:
             case SPARM_STEALTH:
@@ -374,17 +384,23 @@ unsigned int item_value(item_def item, bool ident)
             case SPARM_PROTECTION:
             case SPARM_HURLING:
             case SPARM_REPULSION:
-            case SPARM_PRESERVATION:
+            case SPARM_CORROSION_RESISTANCE:
             case SPARM_SHADOWS:
             case SPARM_RAMPAGING:
             case SPARM_INFUSION:
             case SPARM_LIGHT:
             case SPARM_ENERGY:
+            case SPARM_PARRYING:
+            case SPARM_GLASS:
+            case SPARM_PYROMANIA:
+            case SPARM_STARDUST:
+            case SPARM_MESMERISM:
                 valued += 50;
                 break;
 
             case SPARM_POSITIVE_ENERGY:
             case SPARM_POISON_RESISTANCE:
+            case SPARM_ARCHERY:
             case SPARM_REFLECTION:
             case SPARM_SPIRIT_SHIELD:
             case SPARM_HARM:
@@ -567,7 +583,7 @@ unsigned int item_value(item_def item, bool ident)
         else
         {
             // Variable-strength rings.
-            if (jewellery_type_has_plusses(item.sub_type))
+            if (jewellery_type_has_pluses(item.sub_type))
             {
                 // Formula: price = 5n(n+1)
                 // n is the power. (The base variable is equal to n.)
@@ -610,11 +626,12 @@ unsigned int item_value(item_def item, bool ident)
                 case AMU_MANA_REGENERATION:
                 case AMU_ACROBAT:
                 case AMU_REFLECTION:
+                case AMU_WILDSHAPE:
+                case AMU_ALCHEMY:
+                case AMU_DISSIPATION:
                     valued += 300;
                     break;
 
-                case RING_FIRE:
-                case RING_ICE:
                 case RING_PROTECTION_FROM_COLD:
                 case RING_PROTECTION_FROM_FIRE:
                 case RING_WILLPOWER:
@@ -689,28 +706,38 @@ unsigned int item_value(item_def item, bool ident)
         {
         case TALISMAN_DEATH:
         case TALISMAN_STORM:
-            valued += 800;
+            valued += 400;
             break;
 
         case TALISMAN_DRAGON:
         case TALISMAN_STATUE:
         case TALISMAN_VAMPIRE:
-            valued += 600;
+        case TALISMAN_HIVE:
+        case TALISMAN_SPHINX:
+            valued += 300;
             break;
 
         case TALISMAN_MAW:
         case TALISMAN_SERPENT:
         case TALISMAN_BLADE:
-            valued += 300;
+        case TALISMAN_WEREWOLF:
+        case TALISMAN_FORTRESS:
+            valued += 150;
             break;
 
-        case TALISMAN_FLUX:
-            valued += 250;
+        case TALISMAN_RIMEHORN:
+        case TALISMAN_SPIDER:
+        case TALISMAN_AQUA:
+        case TALISMAN_SCARAB:
+        case TALISMAN_MEDUSA:
+            valued += 125;
             break;
 
-        case TALISMAN_BEAST:
+        case TALISMAN_QUILL:
+        case TALISMAN_INKWELL:
+        case TALISMAN_PROTEAN:
         default:
-            valued += 200;
+            valued += 100;
             break;
         }
         if (is_artefact(item))
@@ -724,22 +751,36 @@ unsigned int item_value(item_def item, bool ident)
 
         break;
 
+    // There's only one bauble type, for now...
+    case OBJ_BAUBLES:
+        valued += 25;
+        break;
+
     case OBJ_BOOKS:
     {
         valued = 0;
         const book_type book = static_cast<book_type>(item.sub_type);
         if (book == BOOK_MANUAL)
             return 800;
+        else if (book == BOOK_PARCHMENT)
+        {
+            int level = spell_difficulty(static_cast<spell_type>(item.plus));
+            // more expensive per spell than books
+            valued = level * 27 + 27;
+        }
 #if TAG_MAJOR_VERSION == 34
-        if (book == BOOK_BUGGY_DESTRUCTION)
+        else if (book == BOOK_BUGGY_DESTRUCTION)
             break;
 #endif
-        int levels = 0;
-        const vector<spell_type> spells = spells_in_book(item);
-        for (spell_type spell : spells)
-            levels += spell_difficulty(spell);
-        // Level 9 spells are worth 4x level 1 spells.
-        valued += levels * 20 + spells.size() * 20;
+        else
+        {
+            int levels = 0;
+            const vector<spell_type> spells = spells_in_book(item);
+            for (spell_type spell : spells)
+                levels += spell_difficulty(spell);
+            // Level 9 spells are worth 4x level 1 spells.
+            valued += levels * 20 + spells.size() * 20;
+        }
         break;
     }
 
@@ -844,6 +885,9 @@ static bool _purchase(shop_struct& shop, const level_pos& pos, int index,
     if (item.is_identified())
         item.flags |= ISFLAG_NOTED_ID;
 
+    // Don't upgrade item with Lucky mutation if it can't fit in our pack.
+    item.flags |= ISFLAG_SEEN;
+
     // Record milestones for purchasing especially notable items (runes,
     // gems, the Orb).
     milestone_check(item);
@@ -915,7 +959,7 @@ class ShopMenu : public InvMenu
     vector<int> bought_indices;
 
     int selected_cost(bool use_shopping_list=false) const;
-    int max_cost() const;
+    int max_cost(bool use_shopping_list=false) const;
 
     void init_entries();
     void update_help();
@@ -1046,11 +1090,20 @@ int ShopMenu::selected_cost(bool use_shopping_list) const
     return cost;
 }
 
-int ShopMenu::max_cost() const
+int ShopMenu::max_cost(bool use_shopping_list) const
 {
     int cost = 0;
     for (auto item : selected_entries())
         cost = max(cost, dynamic_cast<ShopEntry*>(item)->cost);
+    if (use_shopping_list && cost == 0)
+    {
+        for (auto item : items)
+        {
+            auto e = dynamic_cast<ShopEntry*>(item);
+            if (shopping_list.is_on_list(*e->item, &pos))
+                cost = max(cost, e->cost);
+        }
+    }
 
     return cost;
 }
@@ -1062,14 +1115,16 @@ void ShopMenu::update_help()
     //You have 2000 gold pieces. After the purchase, you will have 1802 gold pieces.
     //[Esc] exit          [Tab] buy|examine items     [a-j] mark item for purchase
     //[/] sort (type)     [Enter] buy marked items    [A-J] put item on shopping list
-    string top_line = make_stringf("<yellow>You have %d gold piece%s.",
+    const bool voucher = have_voucher();
+    string top_line = make_stringf("<yellow>You have %d gold piece%s%s.",
                                    you.gold,
-                                   you.gold != 1 ? "s" : "");
+                                   you.gold != 1 ? "s" : "",
+                                   voucher ? " and a voucher" : "");
     const int total_cost = !can_purchase ? 0 : selected_cost(true);
     if (total_cost > you.gold)
     {
-        int max = max_cost();
-        if (have_voucher() && total_cost - max <= you.gold)
+        int max = max_cost(true);
+        if (voucher && total_cost - max <= you.gold)
         {
             top_line += "<lightred>";
             top_line +=
@@ -1200,7 +1255,7 @@ void ShopMenu::purchase_selected()
     const bool too_expensive = (cost > you.gold);
     if (too_expensive)
     {
-        if (!have_voucher() || cost - max_cost() > you.gold)
+        if (!have_voucher() || cost - max_cost(buying_from_list) > you.gold)
         {
             more = formatted_string::parse_string(make_stringf(
                     "<%s>You don't have enough money.</%s>\n",
@@ -1241,7 +1296,7 @@ void ShopMenu::purchase_selected()
     you.last_pickup.clear();
 
     bool use_voucher = false;
-    int voucher_value = too_expensive ? max_cost() : 0;
+    int voucher_value = too_expensive ? max_cost(buying_from_list) : 0;
 
     // Will iterate backwards through the shop (because of the earlier sort).
     // This means we can erase() from shop.stock (since it only invalidates
@@ -1533,9 +1588,9 @@ void destroy_shop_at(coord_def p)
     }
 }
 
-shop_struct *shop_at(const coord_def& where)
+shop_struct *shop_at(const coord_def& where, bool force_lookup)
 {
-    if (env.grid(where) != DNGN_ENTER_SHOP)
+    if (env.grid(where) != DNGN_ENTER_SHOP && !force_lookup)
         return nullptr;
 
     auto it = env.shop.find(where);
@@ -1937,9 +1992,12 @@ bool ShoppingList::cull_identical_items(const item_def& item, int cost)
         }
 
         // Don't prompt to remove known manuals when the new one is for a
-        // different skill.
-        if (item.is_type(OBJ_BOOKS, BOOK_MANUAL) && item.plus != list_item.plus)
+        // different skill, or parchment of different spells.
+        if ((item.is_type(OBJ_BOOKS, BOOK_MANUAL) || item.is_type(OBJ_BOOKS, BOOK_PARCHMENT))
+            && item.plus != list_item.plus)
+        {
             continue;
+        }
 
         list_pair listed(list_item, thing_pos(thing));
 
@@ -2267,8 +2325,10 @@ public:
 
     string get_keyhelp(bool) const override
     {
-        string s = make_stringf("<yellow>You have %d gold pieces</yellow>\n"
-                                "<lightgrey>", you.gold);
+        const bool voucher = have_voucher();
+        string s = make_stringf("<yellow>You have %d gold pieces%s</yellow>\n"
+                                "<lightgrey>", you.gold,
+                                voucher ? " and a voucher." : "");
 
         if (view_only)
             s += "Choose to examine item  ";

@@ -547,11 +547,30 @@ void tile_init_flavour(const coord_def &gc, const int domino)
     else
         tile_env.flv(gc).wall = pick_dngn_tile(tile_env.flv(gc).wall, rand2);
 
-    if (feat_is_stone_stair(env.grid(gc)) && player_in_branch(BRANCH_SHOALS))
+    if (feat_is_stone_stair(env.grid(gc)) && (player_in_branch(BRANCH_SHOALS) ||
+                                              player_in_branch(BRANCH_VAULTS) ||
+                                              player_in_branch(BRANCH_ZOT)))
     {
         const bool up = feat_stair_direction(env.grid(gc)) == CMD_GO_UPSTAIRS;
-        tile_env.flv(gc).feat = up ? TILE_DNGN_SHOALS_STAIRS_UP
-                                   : TILE_DNGN_SHOALS_STAIRS_DOWN;
+        if (player_in_branch(BRANCH_SHOALS))
+        {
+            tile_env.flv(gc).feat = up ? TILE_DNGN_SHOALS_STAIRS_UP
+                                       : TILE_DNGN_SHOALS_STAIRS_DOWN;
+        }
+        else if (player_in_branch(BRANCH_VAULTS))
+        {
+            if (you.depth == branches[BRANCH_VAULTS].numlevels - 1 && !up)
+                tile_env.flv(gc).feat = TILE_DNGN_METAL_STAIRS_DOWN;
+            else if (you.depth == branches[BRANCH_VAULTS].numlevels && up)
+                tile_env.flv(gc).feat = TILE_DNGN_METAL_STAIRS_UP;
+        }
+        else if (player_in_branch(BRANCH_ZOT))
+        {
+            if (you.depth == branches[BRANCH_VAULTS].numlevels - 1 && !up)
+                tile_env.flv(gc).feat = TILE_DNGN_ZOT_STAIRS_DOWN;
+            else if (you.depth == branches[BRANCH_VAULTS].numlevels && up)
+                tile_env.flv(gc).feat = TILE_DNGN_ZOT_STAIRS_UP;
+        }
     }
 
     if (feat_is_escape_hatch(env.grid(gc)) && player_in_branch(BRANCH_TOMB))
@@ -1060,7 +1079,7 @@ static void _tile_place_monster(const coord_def &gc, const monster_info& mon)
     else if (pref != TAGPREF_ALL && !mon.is_named())
         return;
 
-    if (pref != TAGPREF_NAMED && pref != TAGPREF_ALL &&  mon.attitude == ATT_FRIENDLY)
+    if (pref != TAGPREF_NAMED && pref != TAGPREF_ALL && mon.attitude == ATT_FRIENDLY)
         return;
 
     tiles.add_text_tag(TAG_NAMED_MONSTER, mon);
@@ -1320,10 +1339,34 @@ void apply_variations(const tile_flavour &flv, tileidx_t *bg,
         if (orig == TILE_DNGN_STONE_WALL)
             orig = TILE_STONE_WALL_SLIME;
     }
+    else if (player_in_branch(BRANCH_LAIR))
+    {
+        if (orig == TILE_DNGN_STONE_WALL)
+            orig = TILE_STONE_WALL_LAIR;
+    }
+    else if (player_in_branch(BRANCH_ORC))
+    {
+        if (orig == TILE_DNGN_STONE_WALL)
+            orig = TILE_STONE_WALL_ORC;
+    }
+    else if (player_in_branch(BRANCH_ELF))
+    {
+        if (orig == TILE_DNGN_STONE_WALL)
+        {
+            if (gc.x % 2 == gc.y % 2)
+                orig = TILE_STONE_WALL_ELF;
+            else
+                orig = TILE_STONE_WALL_ELF_RUNIC;
+        }
+    }
     else if (player_in_branch(BRANCH_VAULTS))
     {
         if (orig == TILE_DNGN_STONE_WALL)
             orig = TILE_STONE_WALL_VAULT;
+        else if (orig == TILE_DNGN_METAL_WALL)
+            orig = TILE_WALL_VAULTS_METAL;
+        else if (orig == TILE_DNGN_CRYSTAL_WALL)
+            orig = TILE_WALL_VAULTS_CRYSTAL;
     }
     else if (player_in_branch(BRANCH_SPIDER))
     {
@@ -1357,6 +1400,8 @@ void apply_variations(const tile_flavour &flv, tileidx_t *bg,
             else
                 orig = TILE_WALL_DEPTHS_METAL_LEAFY;
         }
+        else if (orig == TILE_DNGN_CRYSTAL_WALL)
+            orig = TILE_WALL_DEPTHS_CRYSTAL;
         else if  (orig == TILE_DNGN_GRANITE_STATUE)
         {
             int hash = hash3(gc.x * gc.x * 10, gc.y * gc.y * 10,
@@ -1558,7 +1603,7 @@ void tile_apply_properties(const coord_def &gc, packed_cell &cell)
     if (mc.flags & MAP_BFB_CORPSE)
         cell.has_bfb_corpse = true;
 
-    if (you.rampage_hints.count(gc) > 0)
+    if (you.on_current_level && you.rampage_hints.count(gc) > 0)
         cell.bg |= TILE_FLAG_RAMPAGE;
 
     if (Options.show_travel_trail)
@@ -1594,6 +1639,15 @@ void tile_apply_properties(const coord_def &gc, packed_cell &cell)
              && env.map_knowledge(gc).flags & MAP_ICY)
     {
         cell.flv.floor = TILE_FLOOR_ICY;
+    }
+    else if ((env.pgrid(gc) & FPROP_SEISMOROCK) && you.see_cell(gc)
+             && feat_has_dry_floor(env.grid(gc)))
+    {
+        // Use the id of the underlying tile to randomize the rock appearance.
+        tileidx_t tile = TILE_FLOOR_SEISMOROCK
+                            + cell.bg % tile_dngn_count(TILE_FLOOR_SEISMOROCK);
+
+        cell.add_overlay(tile);
     }
 }
 #endif

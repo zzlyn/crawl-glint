@@ -394,9 +394,9 @@ function item_resist(str, it)
         return 2
       elseif ego == "fire resistance" or ego == "resistance"
              or subtype == "ring of protection from fire"
-             or name:find("gold dragon") or subtype == "ring of fire" then
+             or name:find("gold dragon") then
         return 1
-      elseif name:find("ice dragon") or subtype == "ring of ice" then
+      elseif name:find("ice dragon") then
         return -1
       else
         return 0
@@ -406,9 +406,9 @@ function item_resist(str, it)
         return 2
       elseif ego == "cold resistance" or ego == "resistance"
              or subtype == "ring of protection from cold"
-             or name:find("gold dragon") or subtype == "ring of ice" then
+             or name:find("gold dragon") then
         return 1
-      elseif name:find("fire dragon") or subtype == "ring of fire" then
+      elseif name:find("fire dragon") then
         return -1
       else
         return 0
@@ -2497,7 +2497,7 @@ function check_monsters(r, mlist)
   local xl = you.xl()
   for _,e in ipairs(enemy_list) do
     if supdist(e.x,e.y) <= r then
-      if not contains_string_in(e.m:name(), {"skeleton", "zombie",
+      if not contains_string_in(e.m:name(), {"draugr", "zombie",
          "simulacrum", "spectral"}) then
         local name = e.m:name()
         local entry = mlist[name]
@@ -5548,7 +5548,7 @@ end
 
 -- adding some clua for this would be better
 function can_use_stairs(mname)
-  if mname:find("zombie") or mname:find("skeleton") or mname:find("spectral")
+  if mname:find("zombie") or mname:find("draugr") or mname:find("spectral")
      or mname:find("simulacrum") or mname:find("oklob")
      or mname:find("statue") or mname:find("ballistomycete")
      or mname == "scrub nettle" or mname == "lightning spire"

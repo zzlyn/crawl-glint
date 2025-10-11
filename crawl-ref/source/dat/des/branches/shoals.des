@@ -182,19 +182,19 @@ ENDMAP
 
 NAME:   elwin_shoals_entry_stream
 TAGS:   shoals_entry transparent
-KMONS:  1 = merfolk
-KMONS:  2 = merfolk siren
+KMONS:  1 = merfolk ; mundane spear
+KMONS:  2 = merfolk siren ; spear
 KFEAT:  12 = W
 KFEAT:  O = enter_shoals
-NSUBST: Y = 2:1 / *:W, Z = 2:1 / *:W, 1 = 1:122 / 1:1112 / *:1
+NSUBST: Y = 2:1 / *:W, Z = 2:1 / *:W, 1 = 1:122 / 1:1W / *:1
 MAP
-    xxxxx
-  xxx...xxx
-xxx..xOx..xxx
-x...YYWZZ...x
-x.YYYxxxZZZ.x
-+W.xxx xxx.W+
-+xxx     xxx+
+    xxxxxxx
+  xxx.....xxx
+xxx...xOx...xxx
+x....WWWWW....x
+x.YYYxxxxxZZZ.x
++W.xxx   xxx.W+
++xxx       xxx+
 ENDMAP
 
 NAME:   elwin_shoals_entry_rooms
@@ -2030,7 +2030,7 @@ kfeat("E = armour shop name:" .. owner .. " type:Merfolk suffix:Armours ; \
       robe | leather armour | helmet | hat | pair of boots | cloak | scarf | \
       pair of gloves | buckler" )
 kfeat("F = general shop name:" .. owner .. " type:Merfolk suffix:Magic ; \
-      ring of dexterity | ring of evasion | ring of ice | ring of protection | \
+      ring of dexterity | ring of evasion  | ring of protection | \
       ring of see invisible | ring of willpower | amulet of reflection | \
       amulet of the acrobat | randbook disc:alchemy | randbook disc:hexes | \
       randbook disc:ice | randbook disc:summoning | phial of floods | \
@@ -2201,6 +2201,7 @@ ENDMAP
 
 NAME:   nicolae_shoals_spectral_cove
 TAGS:   transparent patrolling
+WEIGHT: 0
 KMONS:  p = withered plant
 KMONS:  1 = spectral thing
 KMONS:  2 = ghost crab
@@ -2918,9 +2919,10 @@ KMONS:   O = sphinx marauder
 KMONS:   P = plant
 KITEM:   f = azure gem
 KITEM:   O = barnacled rune of Zot
+KITEM:   R = riddle talisman
 SHUFFLE: d% / e* / f|
 NSUBST:  | = 1:O / *:|
-SUBST:   de = ., %* = |, 1 = 1.., 2 = 2.., 3 = 334, G = G.
+SUBST:   de = ., %* = |, 1 = 1.., 2 = 2.., 3 = 334, G = G., R = R.
 SUBST:   ; : W.., p : W.., q : W.., r : W.., s : W.., y : W.., z : W..
 NSUBST:  . = 16 = 0. / *=.........W
 SUBST:   D = x., c = ccc.
@@ -2950,7 +2952,7 @@ wwwwwwW''''''.W+...pDx......Dyy.....D....D...ccccccccwwwwwwwww
 wwwwwwW'''''..W+...ppxD1..1DxyyDD1..x1..2x.ccc1....1cccwwwwwww
 wwwwwwW''''..ccccc..pxDDDDxxxxxDD...xD++Dxcc1.........ccwwwwww
 wwwwwwW'''..cc..1cc..G....G.....G....G....Gc.....2.....*cwwwww
-wwwwwwW'''..+....2+;;;;;;;;;;;;;;;;;;;;;;;;+..2.....e3.*cwwwww
+wwwwwwW'''..+....2+;;;;;;;;;;;;;;;;;;;;;;;;+..2.....e3R*cwwwww
 wwwwwwW'''..cc..1cc..G....G.....G....G....Gc.....2.....*cwwwww
 wwwwwwW''''..ccccc..qxDDDDxxxxxDD...xD++Dxcc1.........ccwwwwww
 wwwwwwW'''''..W+...qqxD1..1DxzzDD1..x1..2x.ccc1....1cccwwwwwww

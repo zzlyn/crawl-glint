@@ -35,8 +35,9 @@ using std::vector;
 #define TENTACLE_LORD_HITS "tentacle_lord_hits_key"
 
 /// has a given hound already used up its howl?
-#define DOOM_HOUND_HOWLED_KEY "doom_hound_howled"
+#define OBLIVION_HOUND_HOWLED_KEY "doom_hound_howled"
 #define KIKU_WRETCH_KEY "kiku_wretch"
+#define MONSTER_DOOM_KEY "doom_amount"
 
 #define DROPPER_MID_KEY "dropper_mid"
 
@@ -62,6 +63,7 @@ public:
 
     int hit_points;
     int max_hit_points;
+    int exp;
     int speed;
     int speed_increment;
 
@@ -121,8 +123,8 @@ public:
     uint32_t client_id;                // for ID of monster_info between turns
     static uint32_t last_client_id;
 
-    bool went_unseen_this_turn;
-    coord_def unseen_pos;
+    bool revealed_this_turn;
+    coord_def revealed_at_pos;
 
 public:
     void set_new_monster_id();
@@ -184,7 +186,6 @@ public:
     // Has a hydra-like variable number of attacks based on num_heads.
     bool has_hydra_multi_attack() const;
     int  heads() const override;
-    bool has_multitargeting() const;
 
     // Has the 'priest' flag.
     bool is_priest() const;
@@ -264,6 +265,7 @@ public:
     bool     alive() const override;
     bool     defined() const { return alive(); }
     bool     swimming() const override;
+    bool     swimming(bool energy_cost) const;
 
     bool     can_drown() const;
     bool     floundering_at(const coord_def p) const;
@@ -272,8 +274,10 @@ public:
     bool     extra_balanced() const override;
     bool     can_pass_through_feat(dungeon_feature_type grid) const override;
     bool     can_burrow() const override;
-    bool     can_burrow_through(dungeon_feature_type feat) const;
+    bool     can_burrow_through(const coord_def& pos) const;
+    bool     can_flatten_tree_at(const coord_def& pos) const;
     bool     is_habitable_feat(dungeon_feature_type feat) const override;
+    bool     is_habitable(const coord_def &_pos) const override;
     bool     shove(const char* name = "") override;
 
     size_type   body_size(size_part_type psize = PSIZE_TORSO,
@@ -359,8 +363,9 @@ public:
     bool has_bones(bool temp = true) const override;
     bool is_stationary() const override;
     bool malmutate(const actor* source, const string& reason = "") override;
-    bool polymorph(int pow, bool allow_immobile = true) override;
+    bool polymorph(int dur, bool allow_immobile = true) override;
     bool polymorph(poly_power_type power = PPT_SAME);
+    bool doom(int amount) override;
     void banish(const actor *agent, const string &who = "", const int power = 0,
                 bool force = false) override;
     void expose_to_element(beam_type element, int strength = 0,
@@ -397,13 +402,16 @@ public:
     bool res_polar_vortex() const override;
     bool res_petrify(bool /*temp*/ = true) const override;
     bool res_constrict() const override;
+    int res_blind()  const override;
     resists_t all_resists() const;
     int willpower() const override;
     bool no_tele(bool blink = false, bool /*temp*/ = true) const override;
     bool antimagic_susceptible() const override;
 
+    bool clarity(bool items = true) const override;
     bool stasis() const override;
     bool cloud_immune(bool items = true) const override;
+    bool damage_immune(const actor* source = nullptr) const;
 
     bool airborne() const override;
     bool is_banished() const override;
@@ -413,7 +421,7 @@ public:
     bool can_see_invisible() const override;
     bool visible_to(const actor *looker) const override;
     bool near_foe() const;
-    reach_type reach_range() const override;
+    int reach_range() const override;
     bool nightvision() const override;
 
     bool is_icy() const override;
@@ -461,9 +469,6 @@ public:
 
     bool can_throw_large_rocks() const override;
 
-    bool can_be_dazzled() const override;
-    bool can_be_blinded() const override;
-
     bool can_speak();
     bool is_silenced() const;
 
@@ -505,7 +510,10 @@ public:
     void put_to_sleep(actor *attacker, int duration = 0, bool hibernate = false)
         override;
     void weaken(const actor *attacker, int pow) override;
+    void diminish(const actor *attacker, int pow) override;
     bool strip_willpower(actor *attacker, int dur, bool quiet = false) override;
+    void daze(int duration) override;
+    void vitrify(const actor *attacker, int duration, bool quiet = false) override;
     int beam_resists(bolt &beam, int hurted, bool doEffects, string source = "")
         override;
 

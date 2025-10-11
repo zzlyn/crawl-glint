@@ -271,11 +271,12 @@ static string mi_calc_draining_gaze_drain(monster* mons)
     return make_stringf("0-%d MP", pow / 8);
 }
 
-static string mi_calc_airstrike_damage(monster* mons)
+static string mi_calc_airstrike_damage(monster* mons, spell_type spell_cast)
 {
-    const int pow = mons_power_for_hd(SPELL_AIRSTRIKE, mons->get_hit_dice());
+    const int pow = mons_power_for_hd(spell_cast, mons->get_hit_dice());
     dice_def dice = base_airstrike_damage(pow);
-    return describe_airstrike_dam(dice);
+    return make_stringf("%dd%d+(%d/space)", dice.num, dice.size,
+                        spell_cast == SPELL_SLEETSTRIKE ? 3 : 2);
 }
 
 static string mi_calc_glaciate_damage(monster* mons)
@@ -360,7 +361,8 @@ static string mons_human_readable_spell_damage_string(monster* monster,
         case SPELL_DRAINING_GAZE:
             return mi_calc_draining_gaze_drain(monster);
         case SPELL_AIRSTRIKE:
-            return mi_calc_airstrike_damage(monster);
+        case SPELL_SLEETSTRIKE:
+            return mi_calc_airstrike_damage(monster, sp);
         case SPELL_GLACIATE:
             return mi_calc_glaciate_damage(monster);
         case SPELL_CHAIN_LIGHTNING:
@@ -862,7 +864,7 @@ int main(int argc, char* argv[])
 
     const int ntrials = 100;
 
-    long exper = 0L;
+    long exp = 0L;
     int hp_min = 0;
     int hp_max = 0;
     int mac = 0;
@@ -875,7 +877,7 @@ int main(int argc, char* argv[])
     {
         monster* mp = &env.mons[index];
         const string mname = mp->name(DESC_PLAIN, true);
-        exper += exper_value(*mp);
+        exp += exp_value(*mp);
         mac += mp->armour_class();
         mev += mp->evasion();
         set_min_max(mp->speed, speed_min, speed_max);
@@ -902,7 +904,7 @@ int main(int argc, char* argv[])
             return 1;
         }
     }
-    exper /= ntrials;
+    exp /= ntrials;
     mac /= ntrials;
     mev /= ntrials;
 
@@ -975,7 +977,6 @@ int main(int argc, char* argv[])
         mon.wield_melee_weapon();
         for (int x = 0; x < 4; x++)
         {
-            mon_attack_def orig_attk(me->attack[x]);
             int attack_num = x;
             if (mon.has_hydra_multi_attack())
                 attack_num = x == 0 ? x : x + mon.number - 1;
@@ -988,7 +989,7 @@ int main(int argc, char* argv[])
                     monsterattacks += ", ";
 
                 short int dam = attk.damage;
-                if (mon.has_ench(ENCH_BERSERK) || mon.has_ench(ENCH_MIGHT))
+                if (mon.berserk_or_frenzied() || mon.has_ench(ENCH_MIGHT))
                     dam = dam * 3 / 2;
 
                 if (mon.has_ench(ENCH_WEAK))
@@ -1002,8 +1003,11 @@ int main(int argc, char* argv[])
                 if (attk.type == AT_CLAW && mon.has_claws() >= 3)
                     monsterattacks += colour(LIGHTGREEN, "(claw)");
 
-                if (flavour_has_reach(attk.flavour))
+                if (_monster_has_reachcleave(mon))
+                    monsterattacks += "(reach)(cleave)";
+                else if (flavour_has_reach(attk.flavour))
                     monsterattacks += "(reach)";
+
                 switch (attk.flavour)
                 {
                 case AF_SWOOP:
@@ -1016,7 +1020,7 @@ int main(int argc, char* argv[])
                     break;
                 case AF_AIRSTRIKE:
                 {
-                    short int min = pow(hd, 1.2) / 2;
+                    short int min = pow(hd, 1.2) * 2 / 9;
                     short int max = pow(hd + 1, 1.2) * 12 / 6;
                     monsterattacks +=
                         colour(LIGHTBLUE, damage_flavour("airstrike", min, max));
@@ -1078,6 +1082,10 @@ int main(int argc, char* argv[])
                     monsterattacks += colour(
                         LIGHTRED, damage_flavour("strong poison", hd * 11 / 3,
                                                  hd * 13 / 2));
+                    break;
+                case AF_REACH_CLEAVE_UGLY:
+                    monsterattacks += colour(
+                        LIGHTBLUE, damage_flavour("ugly", hd, 3 * hd - 1));
                     break;
                 case AF_VAMPIRIC:
                     monsterattacks += colour(RED, "(vampiric)");
@@ -1166,6 +1174,9 @@ int main(int argc, char* argv[])
                     break;
                 case AF_TRICKSTER:
                     monsterattacks += colour(LIGHTGREEN, "(trickster)");
+                    break;
+                case AF_DOOM:
+                    monsterattacks += colour(RED, "(doom)");
                     break;
                 case AF_CRUSH:
                 case AF_PLAIN:
@@ -1275,10 +1286,14 @@ int main(int argc, char* argv[])
         mons_check_flag(mon.is_unbreathing(), monsterflags, "unbreathing");
         mons_check_flag(mon.is_insubstantial(), monsterflags, "insubstantial");
         mons_check_flag(mon.is_amorphous(), monsterflags, "amorphous");
+        mons_check_flag(bool(me->bitfields & M_WARDED), monsterflags, "warded");
 
         string spell_string = construct_spells(spell_lists, damages);
-        if (shapeshifter || mon.type == MONS_PANDEMONIUM_LORD)
+        if (shapeshifter || mon.type == MONS_PANDEMONIUM_LORD
+                         || mon.type == MONS_ORC_APOSTLE)
+        {
             spell_string = "(random)";
+        }
 
         mons_check_flag(vault_monster, monsterflags, colour(BROWN, "vault"));
 
@@ -1356,7 +1371,7 @@ int main(int argc, char* argv[])
         if (me->leaves_corpse)
             printf(" | Corpse");
 
-        printf(" | XP: %ld", exper);
+        printf(" | XP: %ld", exp);
 
         if (!spell_string.empty())
             printf(" | Sp: %s", spell_string.c_str());

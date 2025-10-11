@@ -505,7 +505,7 @@ int DungeonRegion::handle_mouse(wm_mouse_event &event)
 
     if (event.event == wm_mouse_event::MOVE)
     {
-        string desc = get_terse_square_desc(gc);
+        string desc = get_cell_mouseover_tag(gc);
         // Suppress floor description
         if (desc == "floor")
             desc = "";
@@ -804,6 +804,9 @@ bool DungeonRegion::update_tip_text(string &tip)
             if (props & FPROP_SEEN_OR_NOEXP)
                 str.push_back("seen_or_noexp");
 
+            if (props & FPROP_NO_AUTOMAP)
+                str.push_back("no_automap");
+
             if (!str.empty())
             {
                 tip += "FProps: ";
@@ -1062,7 +1065,7 @@ bool DungeonRegion::update_alt_text(string &alt)
     describe_info inf;
     dungeon_feature_type feat = env.map_knowledge(gc).feat();
     if (you.see_cell(gc))
-        get_square_desc(gc, inf);
+        inf.body << get_square_desc(gc);
     else if (feat != DNGN_FLOOR && !feat_is_wall(feat) && !feat_is_tree(feat))
         get_feature_desc(gc, inf);
     else

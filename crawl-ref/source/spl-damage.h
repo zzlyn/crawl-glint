@@ -48,7 +48,7 @@ spret cast_freeze(int pow, monster* mons, bool fail);
 spret cast_airstrike(int pow, coord_def target, bool fail);
 int airstrike_space_around(coord_def target, bool count_invis);
 dice_def base_airstrike_damage(int pow, bool random = false);
-string describe_airstrike_dam(dice_def dice);
+string describe_player_airstrike_dam(dice_def dice);
 string airstrike_intensity_display(int empty_space, tileidx_t& tile);
 string describe_resonance_strike_dam(dice_def dice);
 spret cast_momentum_strike(int pow, coord_def target, bool fail);
@@ -63,7 +63,7 @@ spret cast_ignite_poison(actor *agent, int pow, bool fail,
 spret cast_unravelling(coord_def target, int pow, bool fail);
 string mons_inner_flame_immune_reason(const monster *mons);
 spret cast_inner_flame(coord_def target, int pow, bool fail);
-int get_mercury_weaken_chance(int victim_hd, int pow);
+int get_mercury_weaken_chance(int victim_hd);
 dice_def poisonous_vapours_damage(int pow, bool random);
 spret cast_poisonous_vapours(const actor& agent, int pow, const coord_def target, bool fail);
 bool safe_discharge(coord_def where, bool check_only = false,
@@ -82,6 +82,7 @@ spret cast_plasma_beam(int pow, const actor &agent, bool fail);
 vector<coord_def> plasma_beam_targets(const actor &agent, int pow, bool actual);
 vector<coord_def> plasma_beam_paths(coord_def source, const vector<coord_def> &targets);
 dice_def base_fragmentation_damage(int pow, bool random);
+bool monster_type_is_fraggable(monster_type mc);
 bool setup_fragmentation_beam(bolt &beam, int pow, const actor *caster,
                               const coord_def target, bool quiet,
                               const char **what, bool &hole);
@@ -97,17 +98,12 @@ spret cast_thunderbolt(actor *caster, int pow, coord_def aim,
                             bool fail);
 bool mons_should_fire_permafrost(int pow, const actor &agent);
 spret cast_permafrost_eruption(actor &caster, int pow, bool fail);
-set<coord_def> permafrost_targets(const actor &caster, int pow, bool actual = true);
+set<coord_def> permafrost_targets(const actor &caster, bool actual = true);
 
 actor* forest_near_enemy(const actor *mon);
 void forest_message(const coord_def pos, const string &msg,
                     msg_channel_type ch = MSGCH_PLAIN);
 void forest_damage(const actor *mon);
-
-int dazzle_chance_numerator(int hd);
-int dazzle_chance_denom(int pow);
-bool dazzle_target(actor *victim, const actor *agent, int pow);
-spret cast_dazzling_flash(const actor *caster, int pow, bool fail, bool tracer = false);
 
 spret cast_toxic_radiance(actor *caster, int pow, bool fail = false,
                                bool tracer = false);
@@ -126,7 +122,7 @@ spret cast_ignition(const actor *caster, int pow, bool fail);
 
 spret cast_starburst(int pow, bool fail, bool tracer=false);
 
-void foxfire_attack(const monster *foxfire, const actor *target);
+void seeker_attack(monster& seeker, actor& target);
 
 spret cast_hailstorm(int pow, bool fail, bool tracer=false);
 
@@ -152,7 +148,7 @@ void handle_maxwells_coupling();
 void end_maxwells_coupling(bool quiet = false);
 
 spret cast_noxious_bog(int pow, bool fail);
-vector<coord_def> find_bog_locations(const coord_def &center, int pow);
+vector<coord_def> find_bog_locations(const coord_def &center);
 
 vector<coord_def> find_near_hostiles(int range, bool affect_invis,
                                      const actor& agent);
@@ -160,6 +156,7 @@ vector<coord_def> find_near_hostiles(int range, bool affect_invis,
 int siphon_essence_range();
 bool siphon_essence_affects(const monster &m);
 
+dice_def jinxbite_damage(int pow, bool random);
 void attempt_jinxbite_hit(actor& victim);
 dice_def boulder_damage(int pow, bool random);
 void do_boulder_impact(monster& boulder, actor& victim, bool quiet = false);
@@ -190,3 +187,7 @@ void do_catalyst_explosion(coord_def center, const item_def* wpn);
 
 bool find_life_bolt_ray(coord_def& source, coord_def target, ray_def& ray);
 void fire_life_bolt(actor& attacker, coord_def target);
+
+spret cast_watery_grave();
+
+spret cast_golden_breath(bolt& beam, int power, bool fail);

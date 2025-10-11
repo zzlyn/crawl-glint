@@ -29,11 +29,13 @@
 #include "mon-gear.h"
 #include "mon-place.h"
 #include "mon-tentacle.h"
+#include "mutation.h"
 #include "notes.h"
 #include "religion.h"
 #include "state.h"
 #include "stringutil.h"
 #include "terrain.h"
+#include "transform.h"
 #include "traps.h"
 #include "xom.h"
 
@@ -99,8 +101,7 @@ void monster_drop_things(monster* mons,
                 && item != NON_ITEM
                 && env.item[item].base_type == OBJ_GOLD
                 && you.see_cell(mons->pos())
-                && x_chance_in_y(env.item[item].quantity, 100)
-                && you.can_be_dazzled())
+                && x_chance_in_y(env.item[item].quantity, 100))
             {
                 string msg = make_stringf("%s dazzles you with the glint of coin.",
                     god_name(GOD_GOZAG).c_str());
@@ -115,6 +116,10 @@ void monster_drop_things(monster* mons,
         if (old_halo != new_halo || old_umbra != new_umbra)
             invalidate_agrid(true);
     }
+
+    // If the monster died in a wall, try to push the items out of it.
+    if (cell_is_solid(mons->pos()))
+        dgn_check_terrain_items(mons->pos(), true, you.see_cell(mons->pos()));
 }
 
 static bool _valid_type_morph(const monster &mons, monster_type new_mclass)
@@ -324,6 +329,7 @@ void change_monster_type(monster* mons, monster_type targetc, bool do_seen)
     mon_enchant insanity  = mons->get_ench(ENCH_FRENZIED);
     mon_enchant vengeance = mons->get_ench(ENCH_VENGEANCE_TARGET);
     mon_enchant tempered  = mons->get_ench(ENCH_TEMPERED);
+    mon_enchant thrall    = mons->get_ench(ENCH_VAMPIRE_THRALL);
 
     mons->number       = 0;
 
@@ -365,6 +371,7 @@ void change_monster_type(monster* mons, monster_type targetc, bool do_seen)
     mons->add_ench(insanity);
     mons->add_ench(vengeance);
     mons->add_ench(tempered);
+    mons->add_ench(thrall);
 
     mons->ench_countdown = old_ench_countdown;
 
@@ -432,23 +439,8 @@ static bool _habitat_matches(bool orig_flies, habitat_type orig_hab,
         return false;
 
     const habitat_type new_hab = mons_habitat_type(new_type, new_type, false);
-    switch (orig_hab)
-    {
-        case HT_AMPHIBIOUS:
-        case HT_AMPHIBIOUS_LAVA:
-            return new_hab == orig_hab;
-        case HT_WATER:
-            return new_hab == orig_hab || new_hab == HT_AMPHIBIOUS;
-        case HT_LAVA:
-            return new_hab == orig_hab || new_hab == HT_AMPHIBIOUS_LAVA;
-        case HT_LAND:
-            return new_hab == orig_hab
-                || new_hab == HT_AMPHIBIOUS
-                || new_hab == HT_AMPHIBIOUS_LAVA;
-        case NUM_HABITATS:
-            break;
-    }
-    return false; // should never happen
+
+    return (new_hab & orig_hab) == orig_hab;
 }
 
 static int _goal_hd(int orig_hd, poly_power_type ppt)
@@ -785,7 +777,15 @@ void seen_monster(monster* mons)
 
     if (you.unrand_equipped(UNRAND_WYRMBANE))
     {
-        const item_def *wyrmbane = you.weapon();
+        const item_def *wyrmbane = nullptr;
+        const item_def *wpn = you.weapon();
+        const item_def *offhand_wpn = you.offhand_weapon();
+
+        if (wpn && wpn->unrand_idx == UNRAND_WYRMBANE)
+            wyrmbane = wpn;
+        else if (offhand_wpn && offhand_wpn->unrand_idx == UNRAND_WYRMBANE)
+            wyrmbane = offhand_wpn;
+
         if (wyrmbane && mons->dragon_level() > wyrmbane->plus)
             mpr("<green>Wyrmbane glows as a worthy foe approaches.</green>");
     }
@@ -805,4 +805,9 @@ void seen_monster(monster* mons)
 
     if (mons_offers_beogh_conversion(*mons))
         env.level_state |= LSTATE_BEOGH;
+
+    if (you.form == transformation::sphinx)
+        sphinx_notice_riddle_target(mons);
+
+    maybe_apply_bane_to_monster(*mons);
 }

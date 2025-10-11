@@ -114,6 +114,7 @@ static const vector<god_passive> god_passives[] =
         {  -1, passive_t::reaping },
         {  -1, passive_t::nightvision },
         {  -1, passive_t::r_spectral_mist },
+        {  -1, passive_t::r_misery },
     },
 
     // Xom
@@ -423,7 +424,10 @@ void ash_check_bondage()
         if (j == SLOT_GIZMO)
             continue;
 
-        num_slots += you.equipment.num_slots[j];
+        // Count melded slot-giving unrands here, since any melded items held
+        // in those slots will be counted below, which can otherwise result in
+        // having more cursed items than the game thinks we have slots.
+        num_slots += get_player_equip_slot_count(static_cast<equipment_slot>(j), nullptr, true);
     }
 
     // Find what percentage of available slots have a cursed item in them.
@@ -691,9 +695,9 @@ void qazlal_storm_clouds()
         return;
 
     // You are a *storm*. You are pretty loud!
-    noisy(min((int)you.piety, piety_breakpoint(5)) / 10, you.pos());
+    noisy(min((int)you.piety(), piety_breakpoint(5)) / 10, you.pos());
 
-    const int radius = you.piety >= piety_breakpoint(3) ? 2 : 1;
+    const int radius = you.piety() >= piety_breakpoint(3) ? 2 : 1;
 
     vector<coord_def> candidates;
     for (radius_iterator ri(you.pos(), radius, C_SQUARE, LOS_SOLID, true);
@@ -717,7 +721,7 @@ void qazlal_storm_clouds()
             candidates.push_back(*ri);
     }
     const int count =
-        div_rand_round(min((int)you.piety, piety_breakpoint(5))
+        div_rand_round(min((int)you.piety(), piety_breakpoint(5))
                        * candidates.size() * you.time_taken,
                        piety_breakpoint(5) * 7 * BASELINE_DELAY);
     if (count < 0)
@@ -766,10 +770,9 @@ void qazlal_element_adapt(beam_type flavour, int strength)
     beam_type what = BEAM_NONE;
     duration_type dur = NUM_DURATIONS;
     string descript = "";
-    switch (flavour)
+    switch (get_beam_resist_type(flavour))
     {
         case BEAM_FIRE:
-        case BEAM_LAVA:
         case BEAM_STICKY_FLAME:
         case BEAM_STEAM:
             what = BEAM_FIRE;
@@ -777,20 +780,16 @@ void qazlal_element_adapt(beam_type flavour, int strength)
             descript = "fire";
             break;
         case BEAM_COLD:
-        case BEAM_ICE:
             what = BEAM_COLD;
             dur = DUR_QAZLAL_COLD_RES;
             descript = "cold";
             break;
         case BEAM_ELECTRICITY:
-        case BEAM_THUNDER:
             what = BEAM_ELECTRICITY;
             dur = DUR_QAZLAL_ELEC_RES;
             descript = "electricity";
             break;
-        case BEAM_MMISSILE: // for LCS, iron shot
         case BEAM_MISSILE:
-        case BEAM_FRAG:
             what = BEAM_MISSILE;
             dur = DUR_QAZLAL_AC;
             descript = "physical attacks";
@@ -858,7 +857,7 @@ bool does_ru_wanna_redirect(const monster &mon)
 ru_interference get_ru_attack_interference_level()
 {
     int r = random2(100);
-    int chance = div_rand_round(you.piety, 16);
+    int chance = div_rand_round(you.piety(), 16);
 
     // 10% chance of stopping any attack at max piety
     if (r < chance)
@@ -919,7 +918,7 @@ static bool _shadow_will_act(bool spell, bool melee)
     // For spells:  15% chance at min piety, 25% chance at 160 piety.
     const int range = piety_breakpoint(5) - minpiety;
     return x_chance_in_y(10 + (spell ? 5 : 0)
-                          + ((min(piety_breakpoint(5), (int)you.piety) - minpiety) * 10 / range), 100);
+                          + ((min(piety_breakpoint(5), (int)you.piety()) - minpiety) * 10 / range), 100);
 
     return true;
 }
@@ -1701,7 +1700,7 @@ static coord_def _find_shadow_prism_position(coord_def& aim)
         {
             coord_def p = you.pos() + targ_spots[i].first;
             if (p != valid_spots[j]
-                && grid_distance(p, valid_spots[j]) <= spell_range(SPELL_SHADOW_PRISM, 100)
+                && grid_distance(p, valid_spots[j]) <= spell_range(SPELL_SHADOW_PRISM)
                 && cell_see_cell(p, valid_spots[j], LOS_NO_TRANS)
                 && cell_see_cell(you.pos(), valid_spots[j], LOS_NO_TRANS)
                 && cell_see_cell(you.pos(), p, LOS_NO_TRANS))
@@ -1855,8 +1854,7 @@ void wu_jian_trigger_serpents_lash(bool wall_jump, const coord_def& old_pos)
         mpr("Your supernatural speed expires.");
     }
 
-    if (!cell_is_solid(old_pos))
-        check_place_cloud(CLOUD_DUST, old_pos, 2 + random2(3) , &you, 1, -1);
+    place_cloud(CLOUD_DUST, old_pos, 2 + random2(3) , &you, 1, -1);
 }
 
 static void _wu_jian_increment_heavenly_storm()
@@ -1967,7 +1965,7 @@ static bool _wu_jian_lunge(coord_def old_pos, coord_def new_pos,
              number_of_attacks > 1 ? ", in a flurry of attacks" : "");
     }
 
-    count_action(CACT_ABIL, ABIL_WU_JIAN_LUNGE);
+    count_action(CACT_ATTACK, ATTACK_LUNGE);
 
     for (int i = 0; i < number_of_attacks; i++)
     {
@@ -2035,7 +2033,7 @@ static bool _wu_jian_whirlwind(coord_def old_pos, coord_def new_pos,
                      ", with incredible momentum" : "");
         }
 
-        count_action(CACT_ABIL, ABIL_WU_JIAN_WHIRLWIND);
+        count_action(CACT_ATTACK, ATTACK_WHIRLWIND);
 
         for (int i = 0; i < number_of_attacks; i++)
         {
@@ -2071,6 +2069,12 @@ static bool _wu_jian_trigger_martial_arts(coord_def old_pos,
     if (have_passive(passive_t::wu_jian_whirlwind))
         attacked |= _wu_jian_whirlwind(old_pos, new_pos, check_only);
 
+    // Trigger post-attack effects. (We don't track which monsters were
+    // actually attacked, but it's safe to say they weren't firewood, since
+    // martial attacks aren't launched against those in general.)
+    if (attacked && !check_only)
+        do_player_post_attack(nullptr, false, false);
+
     return attacked;
 }
 
@@ -2099,11 +2103,12 @@ bool wu_jian_wall_jump_triggers_attacks(const coord_def &pos)
     return !_wu_jian_wall_jump_monsters(pos).empty();
 }
 
-void wu_jian_wall_jump_effects()
+// Returns true if at least one monster could have been attacked (even if our
+// attack speed was somehow too slow to succeed at doing so.)
+bool wu_jian_wall_jump_effects()
 {
     for (adjacent_iterator ai(you.pos(), true); ai; ++ai)
-        if (!cell_is_solid(*ai))
-            check_place_cloud(CLOUD_DUST, *ai, 1 + random2(3) , &you, 0, -1);
+        place_cloud(CLOUD_DUST, *ai, 1 + random2(3) , &you, 0, -1);
 
     vector<monster*> targets = _wu_jian_wall_jump_monsters(you.pos());
     for (auto target : targets)
@@ -2144,6 +2149,8 @@ void wu_jian_wall_jump_effects()
             aerial.launch_attack_set();
         }
     }
+
+    return !targets.empty();
 }
 
 bool wu_jian_post_move_effects(bool did_wall_jump,

@@ -416,6 +416,14 @@ static int _acquirement_weapon_subtype(int & /*quantity*/, int agent)
 
         int acqweight = property(item_considered, PWPN_ACQ_WEIGHT) * 100;
 
+        // Smaller species missing a hand can acquire polearms with default weight
+        // zero, namely spears, since they have no other polearm option.
+        if (skill == SK_POLEARMS && you.has_mutation(MUT_MISSING_HAND)
+            && you.body_size() < SIZE_MEDIUM && !acqweight)
+        {
+            acqweight = 100;
+        }
+
         if (!acqweight)
             continue;
 
@@ -644,65 +652,49 @@ static int _acquirement_book_subtype(int & /*quantity*/,
     //or asserts will get set off
 }
 
-static vector<pair<talisman_type, int>> _base_talisman_tiers()
-{
-    vector<pair<talisman_type, int>> tiers = {
-        { TALISMAN_BEAST,   1 },
-        { TALISMAN_FLUX,    2 },
-        { TALISMAN_MAW,     3 },
-        { TALISMAN_SERPENT, 3 },
-        { TALISMAN_BLADE,   3 },
-        { TALISMAN_STATUE,  4 },
-        { TALISMAN_DRAGON,  4 },
-        { TALISMAN_VAMPIRE, 4 },
-        { TALISMAN_STORM,   5 },
-        { TALISMAN_DEATH,   5 },
-        { NUM_TALISMANS,    5 },
-    };
-    return tiers;
-}
-
 // Scale talisman chances, strongly biased in favour of those we haven't
 // seen before, and also biased in favour of higher tier talismans when
 // we have more Shapeshifting skill.
-static void _scale_talisman_weights(vector<pair<talisman_type, int>> &tiers,
-                                    int agent)
+static vector<pair<talisman_type, int>> _scale_talisman_weights(int agent)
 {
+    // Xom always selects a talisman purely at random.
+    if (agent == GOD_XOM)
+        return {{NUM_TALISMANS, 1000}};
+
     // This will produce a target tier between 3 and 6 depending on skill.
     // This is very roughly one tier higher than the tier of talisman you
     // can use with your current skill, because you probably already have a
     // talisman matching your current skill and are looking for an upgrade.
-    const int target_tier = min(6, div_rand_round(_skill_rdiv(SK_SHAPESHIFTING), 7) + 3);
+    const int target_tier = min(6, div_rand_round(_skill_rdiv(SK_SHAPESHIFTING), 8) + 3);
 
-    // Change all the tier values, other than the random option, to weights.
+    // Compile all talismans into one list and give them appropriate weights.
     // The random option will stay weight 5.
-    for (auto &tier : tiers)
+    vector<pair<talisman_type, int>> weights;
+    for (int tier = 1; tier <=5; ++tier)
     {
-        // Skip the random option.
-        if (tier.first == NUM_TALISMANS)
-            continue;
-
-        // Xom will set all weights but the one for the random option to 0.
-        if (agent == GOD_XOM)
+        vector<talisman_type> by_tier = talismans_by_tier(tier);
+        for (talisman_type type : by_tier)
         {
-            tier.second = 0;
-            continue;
+            int scale_value = 1;
+
+            if (!you.seen_talisman[type])
+                scale_value *= 10;
+
+            if (tier == target_tier)
+                scale_value *= 25;
+            else if (abs(tier - target_tier) == 1)
+                scale_value *= 15;
+            else if (abs(tier - target_tier) == 2)
+                scale_value *= 7;
+
+            weights.push_back({type, scale_value});
         }
-
-        int scale_value = 1;
-
-        if (!you.seen_talisman[tier.first])
-            scale_value *= 10;
-
-        if (tier.second == target_tier)
-            scale_value *= 30;
-        else if (abs(tier.second - target_tier) == 1)
-            scale_value *= 15;
-        else if (abs(tier.second - target_tier) == 2)
-            scale_value *= 5;
-
-        tier.second = scale_value;
     }
+
+    // Always a small chance for any talisman
+    weights.push_back({NUM_TALISMANS, 5});
+
+    return weights;
 }
 
 /**
@@ -718,15 +710,19 @@ static void _scale_talisman_weights(vector<pair<talisman_type, int>> &tiers,
 static int _acquirement_talisman_subtype(int & /*quantity*/,
                                          int agent)
 {
-    vector<pair<talisman_type, int>> tiers = _base_talisman_tiers();
     talisman_type talisman = NUM_TALISMANS;
-
-    _scale_talisman_weights(tiers, agent);
+    vector<pair<talisman_type, int>> tiers = _scale_talisman_weights(agent);
     talisman = *random_choose_weighted(tiers);
 
-    // Choose randomly.
+    // Choose randomly (but don't acquire a protean talisman from a scroll)
     if (talisman == NUM_TALISMANS)
-        talisman = static_cast<talisman_type>(random2(NUM_TALISMANS));
+    {
+        do
+        {
+            talisman = static_cast<talisman_type>(random2(NUM_TALISMANS));
+        }
+        while (agent != GOD_XOM && talisman == TALISMAN_PROTEAN);
+    }
 
     return talisman;
 }
@@ -757,6 +753,7 @@ static const acquirement_subtype_finder _subtype_finders[] =
     _acquirement_talisman_subtype,
     0, // no gems either
     0, // no gizmos (handled elsewhere)
+    0, // no baubles
 };
 
 static int _find_acquirement_subtype(object_class_type &class_wanted,
@@ -841,6 +838,7 @@ static int _book_weight(book_type book)
 {
     ASSERT_RANGE(book, 0, NUM_BOOKS);
     ASSERT(book != BOOK_MANUAL);
+    ASSERT(book != BOOK_PARCHMENT);
     ASSERT(book != BOOK_RANDART_LEVEL);
     ASSERT(book != BOOK_RANDART_THEME);
 
@@ -939,17 +937,10 @@ static bool _acquire_manual(item_def &book)
     {
         const int skl = _skill_rdiv(sk);
 
-        if (skl == 27 || is_useless_skill(sk))
+        if (skl == 27 || is_useless_skill(sk) || _skill_useless_with_god(sk))
             continue;
 
         int w = (skl < 12) ? skl + 3 : max(0, 25 - skl);
-
-        // Greatly reduce the chances of getting a manual for a skill
-        // you couldn't use unless you switched your religion.
-        // Note: manuals that gods actively hate, e.g. spellcasting under
-        // Trog, will be mulched and replaced later. This is silly!
-        if (_skill_useless_with_god(sk))
-            w /= 2;
 
         weights[sk] = w;
         total_weights += w;
@@ -1166,6 +1157,21 @@ static string _why_reject(const item_def &item, int agent)
     if (agent == GOD_OKAWARU && get_weapon_brand(item) == SPWPN_REAPING)
         return "Destroying Oka-gifted reaping weapon.";
 
+    // Oka does not gift command armour.
+    if (agent == GOD_OKAWARU && get_armour_ego_type(item) == SPARM_COMMAND)
+        return "Destroying Oka-gifted command armour.";
+
+    // Oka does not gift the Mask of the Dragon.
+    if (agent == GOD_OKAWARU && is_unrandom_artefact(item, UNRAND_DRAGONMASK))
+        return "Destroying Oka-gifted Mask of the Dragon.";
+
+    // Mask of the Dragon is useless if Love is sacrificed.
+    if (you.get_mutation_level(MUT_NO_LOVE)
+        && is_unrandom_artefact(item, UNRAND_DRAGONMASK))
+    {
+        return "Destroying Mask of the Dragon after Love sac!";
+    }
+
     // Pain brand is useless if you've sacrificed Necromancy.
     if (you.get_mutation_level(MUT_NO_NECROMANCY_MAGIC)
         && get_weapon_brand(item) == SPWPN_PAIN)
@@ -1173,15 +1179,42 @@ static string _why_reject(const item_def &item, int agent)
         return "Destroying pain weapon after Necro sac!";
     }
 
+    // Command brand is useless if you've sacrificed Love, Armour or Summoning.
+    if ((you.get_mutation_level(MUT_NO_LOVE)
+        || you.get_mutation_level(MUT_NO_ARMOUR_SKILL)
+        || you.get_mutation_level(MUT_NO_SUMMONING_MAGIC))
+        && get_armour_ego_type(item) == SPARM_COMMAND)
+    {
+        return "Destroying armour of command after Love, Armour or Summ sac!";
+    }
+
+    // Death brand is useless if you've sacrificed Necro.
+    if (you.get_mutation_level(MUT_NO_NECROMANCY_MAGIC)
+        && get_armour_ego_type(item) == SPARM_DEATH)
+    {
+        return "Destroying armour of death after Necro sac!";
+    }
+
+    // Resonance brand is useless if you've sacrificed Forgecraft.
+    if (you.get_mutation_level(MUT_NO_FORGECRAFT_MAGIC)
+        && get_armour_ego_type(item) == SPARM_RESONANCE)
+    {
+        return "Destroying armour of resonance after Forgecraft sac!";
+    }
+
     if (you.undead_or_demonic(false) && is_holy_item(item))
         return "Destroying holy weapon for evil player!";
+
+    if (you.is_holy() && get_weapon_brand(item) == SPWPN_FOUL_FLAME)
+        return "Destroying foul flame weapon for holy player!";
 
     return ""; // all OK
 }
 
 int acquirement_create_item(object_class_type class_wanted,
                             int agent, bool quiet,
-                            const coord_def &pos)
+                            const coord_def &pos,
+                            int force_ego)
 {
     ASSERT(class_wanted != OBJ_RANDOM);
 
@@ -1211,7 +1244,7 @@ int acquirement_create_item(object_class_type class_wanted,
             want_arts = false;
 
         thing_created = items(want_arts, class_wanted, type_wanted,
-                              item_level, 0, agent);
+                              item_level, force_ego, agent);
 
         if (thing_created == NON_ITEM)
         {
@@ -1221,6 +1254,21 @@ int acquirement_create_item(object_class_type class_wanted,
         }
 
         item_def &acq_item(env.item[thing_created]);
+
+        // If we asked for a specific brand and got something back without it
+        // (likely because we rolled an incompatible type), destroy the item and
+        // try again.
+        if (force_ego > 0)
+        {
+            if ((acq_item.base_type == OBJ_WEAPONS && get_weapon_brand(acq_item) != force_ego)
+                || (acq_item.base_type == OBJ_ARMOUR && get_armour_ego_type(acq_item) != force_ego))
+            {
+                destroy_item(thing_created, true);
+                thing_created = NON_ITEM;
+                continue;
+            }
+        }
+
         _adjust_brand(acq_item, agent);
 
         // Increase the chance of armour being an artefact by usually
@@ -1319,6 +1367,16 @@ int acquirement_create_item(object_class_type class_wanted,
             // Don't acquire negative enchantment except via Xom.
             if (agent != GOD_XOM)
                 acq_item.plus = max(static_cast<int>(acq_item.plus), 0);
+        }
+        else if (acq_item.base_type == OBJ_TALISMANS
+                 && !is_artefact(acq_item) && one_chance_in(4))
+        {
+            make_item_randart(acq_item);
+        }
+        else if (acq_item.base_type == OBJ_STAVES
+                 && !is_artefact(acq_item) && !one_chance_in(5))
+        {
+            make_item_randart(acq_item);
         }
 
         // Last check: don't acquire items your god hates.
@@ -1468,7 +1526,8 @@ static void _create_acquirement_item(item_def &item, string items_key,
 
     take_note(Note(NOTE_ACQUIRE_ITEM, 0, 0, item.name(DESC_A),
               origin_desc(item)));
-    item.flags |= (ISFLAG_NOTED_ID | ISFLAG_NOTED_GET);
+    // Mark as seen so that Lucky cannot proc off it.
+    item.flags |= (ISFLAG_NOTED_ID | ISFLAG_NOTED_GET | ISFLAG_SEEN);
     identify_item(item);
 
     if (is_gizmo)
@@ -1477,7 +1536,7 @@ static void _create_acquirement_item(item_def &item, string items_key,
         // XXX: This is ugly and only works because there can never be another
         //      gizmo in our inventory, but move_item_to_inv() doesn't actually
         //      return an index or anything else we can use.
-        for (int i = 0; i < ENDOFPACK; ++i)
+        for (int i = 0; i < MAX_GEAR; ++i)
         {
             if (you.inv[i].base_type == OBJ_GIZMOS)
             {
@@ -1635,7 +1694,7 @@ vector<object_class_type> shuffled_acquirement_classes(bool scroll)
         // other (either they are exactly what your pure caster wants
         // or they are the wrong staff or you aren't interested in
         // staves). So make this option a bit rarer.
-        if (!one_chance_in(3))
+        if (one_chance_in(3))
             rand_classes.emplace_back(OBJ_STAVES);
     }
 
@@ -1646,8 +1705,8 @@ vector<object_class_type> shuffled_acquirement_classes(bool scroll)
 
     if (!you_worship(GOD_ZIN) && !you.has_mutation(MUT_NO_FORMS))
     {
-        // We want talisman acq to be fairly rare.
-        if (one_chance_in(3))
+        // We want talisman acq to be rarer than others.
+        if (x_chance_in_y(45, 100))
             rand_classes.emplace_back(OBJ_TALISMANS);
     }
 
@@ -1940,7 +1999,7 @@ static void _make_coglin_gizmos()
 
 bool coglin_invent_gizmo()
 {
-    if (inv_count() >= ENDOFPACK)
+    if (inv_count(INVENT_GEAR) >= MAX_GEAR)
     {
         mpr("You don't have room to hold a gizmo! Drop something first.");
         return false;

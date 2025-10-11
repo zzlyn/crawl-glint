@@ -141,13 +141,18 @@ static map<enchant_type, monster_info_flags> trivial_ench_mb_mappings = {
     { ENCH_RIMEBLIGHT,      MB_RIMEBLIGHT },
     { ENCH_ARMED,           MB_ARMED },
     { ENCH_SHADOWLESS,      MB_SHADOWLESS },
-    { ENCH_DOUBLED_HEALTH,  MB_DOUBLED_HEALTH },
+    { ENCH_DOUBLED_VIGOUR,  MB_DOUBLED_VIGOUR },
     { ENCH_KINETIC_GRAPNEL, MB_KINETIC_GRAPNEL },
     { ENCH_TEMPERED,        MB_TEMPERED },
     { ENCH_BLINKITIS,       MB_BLINKITIS },
     { ENCH_CHAOS_LACE,      MB_CHAOS_LACE },
     { ENCH_VEXED,           MB_VEXED },
     { ENCH_PYRRHIC_RECOLLECTION, MB_PYRRHIC_RECOLLECTION },
+    { ENCH_CLOCKWORK_BEE_CAST, MB_CLOCKWORK_BEE_CAST },
+    { ENCH_FIGMENT,         MB_FIGMENT },
+    { ENCH_PARADOX_TOUCHED, MB_PARADOX },
+    { ENCH_WARDING,         MB_WARDING },
+    { ENCH_DIMINISHED_SPELLS, MB_DIMINISHED_SPELLS },
 };
 
 static monster_info_flags ench_to_mb(const monster& mons, enchant_type ench)
@@ -202,8 +207,11 @@ static monster_info_flags ench_to_mb(const monster& mons, enchant_type ench)
     case ENCH_CONTAM:
         return mons.get_ench(ench).degree == 1 ? MB_CONTAM_LIGHT : MB_CONTAM_HEAVY;
     case ENCH_SLOWLY_DYING:
-        if (mons.type == MONS_WITHERED_PLANT)
+        if (mons.type == MONS_WITHERED_PLANT ||
+            mons.type == MONS_PILE_OF_DEBRIS)
+        {
             return MB_CRUMBLING;
+        }
         if (mons_class_is_fragile(mons.type))
             return MB_WITHERING;
         return MB_SLOWLY_DYING;
@@ -241,7 +249,7 @@ static bool _is_public_key(string key)
      || key == ELVEN_IS_ENERGIZED_KEY
      || key == MUTANT_BEAST_FACETS
      || key == MUTANT_BEAST_TIER
-     || key == DOOM_HOUND_HOWLED_KEY
+     || key == OBLIVION_HOUND_HOWLED_KEY
      || key == MON_GENDER_KEY
      || key == SEEN_SPELLS_KEY
      || key == KNOWN_MAX_HP_KEY
@@ -284,8 +292,7 @@ static void _translate_tentacle_ref(monster_info& mi, const monster* m,
 static bool _has_hydra_multi_attack(const monster_info &mi)
 {
     return mons_genus(mi.type) == MONS_HYDRA
-           || mons_genus(mi.base_type) == MONS_HYDRA
-           || mons_species(mi.base_type) == MONS_SERPENT_OF_HELL;
+           || mons_genus(mi.base_type) == MONS_HYDRA;
 }
 
 monster_info::monster_info(monster_type p_type, monster_type p_base_type)
@@ -323,7 +330,7 @@ monster_info::monster_info(monster_type p_type, monster_type p_base_type)
 
     if (mons_resists_drowning(type, base_type))
         mb.set(MB_RES_DROWN);
-    if (!mons_can_be_blinded(type))
+    if (mons_res_blind(type) > 1)
         mb.set(MB_UNBLINDABLE);
 
     mitemuse = mons_class_itemuse(type);
@@ -363,6 +370,7 @@ monster_info::monster_info(monster_type p_type, monster_type p_base_type)
         hd = ghost_rank_to_level(i_ghost.xl_rank);
         i_ghost.ac = 5;
         i_ghost.damage = 5;
+        i_ghost.title = "";
     }
 
     if (mons_is_draconian_job(type))
@@ -614,7 +622,7 @@ monster_info::monster_info(const monster* m, int milev)
         mb.set(MB_RES_DROWN);
     if (m->clarity())
         mb.set(MB_CLARITY);
-    if (!mons_can_be_blinded(m->type))
+    if (mons_res_blind(m->type) > 1)
         mb.set(MB_UNBLINDABLE);
 
     const int stab_bonus = stab_bonus_denom(find_player_stab_type(*m));
@@ -663,7 +671,8 @@ monster_info::monster_info(const monster* m, int milev)
             mb.set(flag);
     }
 
-    if (!you.visible_to(m))
+    // Similarly, don't set invisibility stab UI for firewood.
+    if (!you.visible_to(m) && !m->is_firewood() && !m->has_ench(ENCH_BLIND))
         mb.set(MB_CANT_SEE_YOU);
 
     if (type == MONS_SILENT_SPECTRE)
@@ -681,8 +690,8 @@ monster_info::monster_info(const monster* m, int milev)
     if (m->known_chaos())
         mb.set(MB_CHAOTIC);
 
-    if (m->type == MONS_DOOM_HOUND
-        && (!m->props.exists(DOOM_HOUND_HOWLED_KEY) || !m->props[DOOM_HOUND_HOWLED_KEY])
+    if (m->type == MONS_OBLIVION_HOUND
+        && (!m->props.exists(OBLIVION_HOUND_HOWLED_KEY) || !m->props[OBLIVION_HOUND_HOWLED_KEY])
         && !m->is_summoned())
     {
         mb.set(MB_READY_TO_HOWL);
@@ -708,6 +717,7 @@ monster_info::monster_info(const monster* m, int milev)
         i_ghost.xl_rank = ghost_level_to_rank(ghost.xl);
         i_ghost.ac = quantise(ghost.ac, 5);
         i_ghost.damage = ghost.damage;
+        i_ghost.title = ghost.title;
         props[KNOWN_MAX_HP_KEY] = (int)ghost.max_hp;
         if (m->props.exists(MIRRORED_GHOST_KEY))
             props[MIRRORED_GHOST_KEY] = m->props[MIRRORED_GHOST_KEY];
@@ -758,8 +768,9 @@ monster_info::monster_info(const monster* m, int milev)
     for (int i = 0; i < MAX_NUM_ATTACKS; ++i)
     {
         // hydras are a mess!
-        const int atk_index = m->has_hydra_multi_attack() ? i + m->heads() - 1
-                                                          : i;
+        const int atk_index = m->has_hydra_multi_attack()
+                                    ? m->type == MONS_DRAUGR && i > 0 ? 1 : 0
+                                    : i;
         attack[i] = mons_attack_spec(*m, atk_index, true);
     }
 
@@ -864,11 +875,11 @@ monster_info::monster_info(const monster* m, int milev)
             mb.set(MB_PARTIALLY_CHARGED);
     }
 
-    if (m->type == MONS_RENDING_BLADE && m->number > 0)
-        mb.set(MB_FULLY_CHARGED);
-
     if (m->type == MONS_SEISMOSAURUS_EGG && egg_is_incubating(*m))
         mb.set(MB_HATCHING);
+
+    if (m->damage_immune(&you))
+        mb.set(MB_PLAYER_DAMAGE_IMMUNE);
 
     // this must be last because it provides this structure to Lua code
     if (milev > MILEV_SKIP_SAFE)
@@ -1169,8 +1180,7 @@ string monster_info::common_name(description_level_type desc) const
 
     if (_has_hydra_multi_attack(*this)
         && type != MONS_SENSED
-        && !mons_class_is_remnant(type)
-        && mons_species(type) != MONS_SERPENT_OF_HELL)
+        && !mons_class_is_remnant(type))
     {
         ASSERT(num_heads > 0);
         if (num_heads < 11)
@@ -1198,26 +1208,14 @@ string monster_info::common_name(description_level_type desc) const
     switch (type)
     {
     case MONS_ZOMBIE:
-#if TAG_MAJOR_VERSION == 34
-    case MONS_ZOMBIE_SMALL:
-    case MONS_ZOMBIE_LARGE:
-#endif
         if (!is(MB_NAME_ZOMBIE))
             ss << (nocore ? "" : " ") << "zombie";
         break;
-    case MONS_SKELETON:
-#if TAG_MAJOR_VERSION == 34
-    case MONS_SKELETON_SMALL:
-    case MONS_SKELETON_LARGE:
-#endif
+    case MONS_DRAUGR:
         if (!is(MB_NAME_ZOMBIE))
-            ss << (nocore ? "" : " ") << "skeleton";
+            ss << (nocore ? "" : " ") << "draugr";
         break;
     case MONS_SIMULACRUM:
-#if TAG_MAJOR_VERSION == 34
-    case MONS_SIMULACRUM_SMALL:
-    case MONS_SIMULACRUM_LARGE:
-#endif
         if (!is(MB_NAME_ZOMBIE))
             ss << (nocore ? "" : " ") << "simulacrum";
         break;
@@ -1230,10 +1228,12 @@ string monster_info::common_name(description_level_type desc) const
             ss << "bound soul";
         break;
     case MONS_PILLAR_OF_SALT:
-        ss << (nocore ? "" : " ") << "shaped pillar of salt";
+        if (base_type != type)
+            ss << (nocore ? "" : " ") << "shaped pillar of salt";
         break;
     case MONS_BLOCK_OF_ICE:
-        ss << (nocore ? "" : " ") << "shaped block of ice";
+        if (base_type != type)
+            ss << (nocore ? "" : " ") << "shaped block of ice";
         break;
     default:
         break;
@@ -1534,9 +1534,11 @@ vector<string> monster_info::attributes() const
 
     if (type == MONS_NAMELESS_REVENANT)
     {
-        const int num_memories = props[NOBODY_MEMORIES_KEY].get_vector().size();
+        const int num_memories = props.exists(NOBODY_MEMORIES_KEY)
+                                    ? props[NOBODY_MEMORIES_KEY].get_vector().size()
+                                    : NOBODY_MAX_MEMORIES;
         v.push_back(make_stringf("%d %s left", num_memories,
-                                               num_memories > 1 ? "memories" : "memory"));
+                                               num_memories == 1 ? "memory" : "memories"));
     }
 
     return v;
@@ -1735,25 +1737,25 @@ int monster_info::range() const
     const item_def *wand = inv[MSLOT_WAND].get();
     if (wand && is_offensive_wand(*wand)) {
         const spell_type spell = spell_in_wand(static_cast<wand_type>(wand->sub_type));
-        range = max(range, calc_spell_range(spell, spell_power_cap(spell), true, true));
+        range = max(range, calc_spell_range(spell, spell_power_cap(spell), false, true));
     }
     return range;
 }
 
-reach_type monster_info::reach_range(bool items) const
+int monster_info::reach_range(bool items) const
 {
     const monsterentry *e = get_monster_data(mons_class_is_zombified(type)
                                              ? base_type : type);
     ASSERT(e);
-    reach_type range = REACH_NONE;
+    int range = 1;
 
     for (int i = 0; i < MAX_NUM_ATTACKS; ++i)
     {
         const attack_flavour fl = e->attack[i].flavour;
         if (fl == AF_RIFT)
-            range = REACH_THREE;
+            range = 3;
         else if (flavour_has_reach(fl))
-            range = max(REACH_TWO, range);
+            range = max(2, range);
     }
 
     if (items)
@@ -1870,8 +1872,7 @@ bool monster_info::has_spells() const
     }
 
     // Wand spells
-    const item_def* wand = inv[MSLOT_WAND].get();
-    if (itemuse() >= MONUSE_STARTING_EQUIPMENT && wand)
+    if (get_wand_spell() != SPELL_NO_SPELL)
         return true;
 
     const mon_spellbook_type book = get_spellbook(*this);
@@ -1899,6 +1900,23 @@ int monster_info::spell_hd(spell_type spell) const
     if (!props.exists(SPELL_HD_KEY))
         return hd;
     return props[SPELL_HD_KEY].get_int();
+}
+
+/// What spell does this monster know because of the wand it's holding (if any)?
+spell_type monster_info::get_wand_spell() const
+{
+    if (itemuse() < MONUSE_STARTING_EQUIPMENT)
+        return SPELL_NO_SPELL;
+
+    const item_def* wand = inv[MSLOT_WAND].get();
+    if (!wand)
+        return SPELL_NO_SPELL;
+
+    const wand_type wandtyp = static_cast<wand_type>(wand->sub_type);
+    // Don't count unidentified wands
+    if (wandtyp >= NUM_WANDS)
+        return SPELL_NO_SPELL;
+    return spell_in_wand(wandtyp);
 }
 
 unsigned monster_info::colour(bool base_colour) const
@@ -1990,10 +2008,10 @@ static bool _has_polearm(const monster_info& mi)
     if (mi.itemuse() >= MONUSE_STARTING_EQUIPMENT)
     {
         const item_def* weapon = mi.inv[MSLOT_WEAPON].get();
-        return weapon && weapon_reach(*weapon) >= REACH_TWO;
+        return weapon && weapon_reach(*weapon) >= 2;
     }
     else
-        return mi.type == MONS_DANCING_WEAPON && mi.reach_range() >= REACH_TWO;
+        return mi.type == MONS_DANCING_WEAPON && mi.reach_range() >= 2;
 }
 
 static bool _has_launcher(const monster_info& mi)
@@ -2070,7 +2088,7 @@ void mons_conditions_string(string& desc, const vector<monster_info>& mi,
                 launcher_count++;
             else if (_has_missile(mi[j]))
                 missile_count++;
-            if (mi[j].reach_range(false) > REACH_NONE)
+            if (mi[j].reach_range(false) > 1)
                 reach_count++;
             if (_has_attack_flavour(mi[j], AF_CRUSH))
                 constrict_count++;

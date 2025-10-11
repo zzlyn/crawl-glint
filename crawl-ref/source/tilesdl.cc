@@ -791,9 +791,9 @@ int TilesFramework::getch_ck()
 
 static const int map_margin      = 2;
 static const int map_stat_margin = 4;
-static const int min_stat_height = 12;
+static const int min_stat_height = 13;
 static const int min_inv_height  = 4;
-static const int max_inv_height  = 6;
+static const int max_inv_height  = 8;
 static const int max_mon_height  = 3;
 
 static int round_up_to_multiple(int a, int b)
@@ -1040,9 +1040,9 @@ void TilesFramework::zoom_dungeon(bool in)
     current_scale = min(ceil(max_zoom*10)/10, max(0.2,
                     current_scale + (in ? ZOOM_INC : -ZOOM_INC)));
     do_layout(); // recalculate the viewport setup
+    redraw_screen(false);
     if (current_scale != orig)
         mprf(MSGCH_PROMPT, "Zooming to %.2f", (float) current_scale);
-    redraw_screen(false);
     update_screen();
 #endif
 }

@@ -130,8 +130,11 @@ struct monsterentry
     monclass_flags_t bitfields;
     resists_t resists;
 
-    // Multiplier for calculated monster XP value; see exper_value() for use.
-    int8_t exp_mod;
+    // The monster's XP value.
+    int exp;
+    // If true, exp is a multiplier used to calculate their XP; see
+    // exp_value().
+    bool exp_is_mult;
 
     monster_type genus,         // "team" the monster plays for
                  species;       // corpse type of the monster
@@ -188,7 +191,7 @@ static inline int get_resist(resists_t all, mon_resist_flags res)
     return v;
 }
 
-dungeon_feature_type habitat2grid(habitat_type ht);
+dungeon_feature_type preferred_feature_type(monster_type mt);
 
 monsterentry *get_monster_data(monster_type mc) IMMUTABLE;
 int get_mons_class_ac(monster_type mc) IMMUTABLE;
@@ -208,14 +211,12 @@ string mons_type_name(monster_type type, description_level_type desc);
 
 bool give_monster_proper_name(monster& mon);
 
-bool mons_flattens_trees(const monster& mon);
 size_type mons_class_body_size(monster_type mc);
 
 mon_itemuse_type mons_class_itemuse(monster_type mc);
 mon_itemuse_type mons_itemuse(const monster& mon);
 
-bool mons_can_be_blinded(monster_type mc);
-bool mons_can_be_dazzled(monster_type mc);
+int mons_res_blind(monster_type mc);
 
 bool mons_resists_drowning(monster_type type, monster_type base);
 
@@ -226,7 +227,6 @@ bool mons_can_shout(monster_type mclass);
 bool mons_is_ghost_demon(monster_type mc);
 bool mons_is_unique(monster_type mc);
 bool mons_is_or_was_unique(const monster& mon);
-bool mons_is_specially_named(monster_type mc);
 bool mons_is_pghost(monster_type mc);
 bool mons_is_draconian_job(monster_type mc);
 bool mons_is_hepliaklqana_ancestor(monster_type mc);
@@ -235,7 +235,7 @@ int mutant_beast_tier(int xl);
 
 int mons_avg_hp(monster_type mc, int scale = 1);
 int mons_max_hp(monster_type mc);
-int exper_value(const monster& mon, bool real = true, bool legacy = false);
+int exp_value(const monster& mon, bool real = true, bool legacy = false);
 
 int hit_points(int avg_hp, int scale = 10);
 
@@ -287,23 +287,20 @@ bool should_attract_mons(const monster &m);
 mon_intel_type mons_class_intel(monster_type mc);
 mon_intel_type mons_intel(const monster& mon);
 
-// Use mons_habitat() and mons_primary_habitat() wherever possible,
-// since the class variants do not handle zombies correctly.
+// Use mons_habitat() wherever possible, since the class variants do not
+// handle zombies correctly.
 habitat_type mons_habitat_type(monster_type t, monster_type base_t,
-                               bool real_amphibious = false);
-habitat_type mons_habitat(const monster& mon, bool real_amphibious = false);
+                               bool core_only = false);
+habitat_type mons_class_habitat(monster_type t, bool core_only = false);
+habitat_type mons_habitat(const monster& mon, bool core_only = false);
 
-habitat_type mons_class_primary_habitat(monster_type mc);
-habitat_type mons_primary_habitat(const monster& mon);
-habitat_type mons_class_secondary_habitat(monster_type mc);
-
-bool mons_skeleton(monster_type mc);
+bool mons_has_skeleton(monster_type mc);
 
 int max_corpse_chunks(monster_type mc);
 int mons_class_base_speed(monster_type mc);
 mon_energy_usage mons_class_energy(monster_type mc);
 mon_energy_usage mons_energy(const monster& mon);
-int mons_class_zombie_base_speed(monster_type zombie_base_mc);
+int mons_class_zombie_base_speed(monster_type zombie_base_mc, bool slow);
 int mons_base_speed(const monster& mon, bool known = false);
 
 bool monster_class_flies(monster_type mc);
@@ -421,6 +418,7 @@ bool mons_class_is_stationary(monster_type mc);
 bool mons_class_is_firewood(monster_type mc);
 bool mons_class_is_peripheral(monster_type mc);
 bool mons_class_is_test(monster_type mc);
+bool mons_class_angered_by_attacks(monster_type mc);
 bool mons_is_active_ballisto(const monster& mon);
 bool mons_has_body(const monster& mon);
 bool mons_is_abyssal_only(monster_type mc);
@@ -432,6 +430,9 @@ int cheibriados_monster_player_speed_delta(const monster& mon);
 bool cheibriados_thinks_mons_is_fast(const monster& mon);
 bool mons_is_projectile(monster_type mc);
 bool mons_is_projectile(const monster& mon);
+bool mons_is_seeker(monster_type mc);
+bool mons_is_seeker(const monster& mon);
+cloud_type seeker_trail_type(const monster& mon);
 bool mons_has_blood(monster_type mc);
 bool mons_is_sensed(monster_type mc);
 bool mons_offers_beogh_conversion(const monster& mon);
@@ -475,8 +476,6 @@ string  draconian_colour_name(monster_type mon_type);
 monster_type draconian_colour_by_name(const string &colour);
 mon_spell_slot drac_breath(monster_type drac_type);
 
-monster_type random_monster_at_grid(const coord_def& p, bool species = false);
-
 void         init_mon_name_cache();
 monster_type get_monster_by_name(string name, bool substring = false);
 
@@ -494,7 +493,7 @@ tileidx_t get_mon_base_tile(monster_type mc);
 mon_type_tile_variation get_mon_tile_variation(monster_type mc);
 tileidx_t get_mon_base_corpse_tile(monster_type mc);
 
-bool mons_class_can_pass(monster_type mc, const dungeon_feature_type grid);
+bool mons_class_can_pass(monster_type mc, dungeon_feature_type grid);
 bool mons_can_open_door(const monster& mon, const coord_def& pos);
 bool mons_can_eat_door(const monster& mon, const coord_def& pos);
 bool mons_can_destroy_door(const monster& mon, const coord_def& pos);

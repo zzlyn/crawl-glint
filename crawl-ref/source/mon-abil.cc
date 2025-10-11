@@ -33,6 +33,7 @@
 #include "item-prop.h"
 #include "libutil.h"
 #include "losglobal.h"
+#include "map-knowledge.h"
 #include "message.h"
 #include "mgen-data.h"
 #include "mon-act.h"
@@ -55,8 +56,10 @@
 #include "target.h"
 #include "teleport.h"
 #include "terrain.h"
+#include "transform.h"
 #include "view.h"
 #include "viewchar.h"
+#include "viewmap.h"
 
 static bool _slime_split_merge(monster* thing);
 
@@ -113,7 +116,7 @@ bool ugly_thing_mutate(monster& ugly, bool force)
         if (!act)
             continue;
 
-        if (act->is_player() && get_contamination_level())
+        if (act->is_player() && player_harmful_contamination())
         {
             msg = " basks in your mutagenic energy and changes!";
             break;
@@ -443,6 +446,7 @@ static bool _slime_merge(monster* thing)
             && other_thing->has_ench(ENCH_HEXED) == thing->has_ench(ENCH_HEXED)
             && other_thing->is_summoned() == thing->is_summoned()
             && !other_thing->is_shapeshifter()
+            && other_thing->has_ench(ENCH_FIGMENT) == thing->has_ench(ENCH_FIGMENT)
             && !_disabled_merge(other_thing))
         {
             // We can potentially merge if doing so won't take us over
@@ -812,7 +816,7 @@ void treant_release_fauna(monster& mons)
     int count = mons.mangrove_pests;
     bool created = false;
 
-    monster_type fauna_t = MONS_HORNET;
+    monster_type fauna_t = one_chance_in(4) ? MONS_RAVEN : MONS_HORNET;
 
     for (int i = 0; i < count; ++i)
     {
@@ -838,8 +842,16 @@ void treant_release_fauna(monster& mons)
 
     if (created && you.can_see(mons))
     {
-        mprf("Angry insects surge out from beneath %s foliage!",
-             mons.name(DESC_ITS).c_str());
+        if (fauna_t == MONS_RAVEN)
+        {
+            mprf("Jet-black ravens fly out from beneath %s foliage!",
+                 mons.name(DESC_ITS).c_str());
+        }
+        else
+        {
+            mprf("Angry insects surge out from beneath %s foliage!",
+                mons.name(DESC_ITS).c_str());
+        }
     }
 }
 
@@ -906,7 +918,7 @@ static void _weeping_skull_cloud_aura(monster* mons)
         place_cloud(CLOUD_MISERY, pos[i], random2(3) + 2, mons);
 }
 
-static void _seismosaurus_egg_hatch(monster* mons)
+void seismosaurus_egg_hatch(monster* mons)
 {
     mon_enchant hatch = mons->get_ench(ENCH_HATCHING);
     hatch.duration -= 1;
@@ -940,6 +952,11 @@ static void _seismosaurus_egg_hatch(monster* mons)
         // Immediately stomp if anything is in range
         mons->speed_increment = 80;
         try_mons_cast(*mons, SPELL_SEISMIC_STOMP);
+        queue_monster_for_action(mons);
+
+        // Clean up range indicator
+        for (distance_iterator di(mons->pos(), false, false, 4); di; ++di)
+            env.pgrid(*di) &= ~FPROP_SEISMOROCK;
 
         return;
     }
@@ -963,8 +980,7 @@ bool mon_special_ability(monster* mons)
 
     // Slime creatures can split while out of sight.
     if ((!mons->near_foe() || mons->asleep())
-         && mons->type != MONS_SLIME_CREATURE
-         && mons->type != MONS_SEISMOSAURUS_EGG)
+         && mons->type != MONS_SLIME_CREATURE)
     {
         return false;
     }
@@ -1007,26 +1023,21 @@ bool mon_special_ability(monster* mons)
                 continue;
             }
 
-            if (!cell_is_solid(targ->pos()))
-            {
-                mons->suicide();
-                used = true;
-                break;
-            }
+            mons->suicide();
+            used = true;
+            break;
         }
         break;
 
     case MONS_FOXFIRE:
+    case MONS_SHOOTING_STAR:
         if (is_sanctuary(mons->pos()))
             break;
 
         if (mons->attitude == ATT_HOSTILE
             && grid_distance(you.pos(), mons->pos()) == 1)
         {
-            foxfire_attack(mons, &you);
-            check_place_cloud(CLOUD_FLAME, mons->pos(), 2, mons);
-            if (mons->alive())
-                monster_die(*mons, KILL_RESET, NON_MONSTER, true);
+            seeker_attack(*mons, you);
             used = true;
             break;
         }
@@ -1035,19 +1046,14 @@ bool mon_special_ability(monster* mons)
         {
             if (mons_aligned(mons, *targ) || targ->is_firewood()
                 || grid_distance(mons->pos(), targ->pos()) > 1
-                || !you.see_cell(targ->pos()))
+                || (mons->friendly() && !you.see_cell(targ->pos())))
             {
                 continue;
             }
 
-            if (!cell_is_solid(targ->pos()))
-            {
-                foxfire_attack(mons, *targ);
-                if (mons->alive())
-                    monster_die(*mons, KILL_RESET, NON_MONSTER, true);
-                used = true;
-                break;
-            }
+            seeker_attack(*mons, **targ);
+            used = true;
+            break;
         }
         break;
 
@@ -1183,30 +1189,28 @@ bool mon_special_ability(monster* mons)
         _weeping_skull_cloud_aura(mons);
         break;
 
-    case MONS_SEISMOSAURUS_EGG:
-        if (egg_is_incubating(*mons))
+    case MONS_CLOCKWORK_BEE_INACTIVE:
+    {
+        // Note: the player is not a monster, so this will never happen to them.
+        monster* summ = monster_by_mid(mons->summoner);
+        if (summ && adjacent(summ->pos(), mons->pos()) && !summ->incapacitated()
+            && summ->has_action_energy() && !one_chance_in(4))
         {
-            _seismosaurus_egg_hatch(mons);
-            used = true;
+            if (clockwork_bee_recharge(*summ, *mons))
+                summ->lose_energy(EUT_MOVE);
         }
         break;
+    }
 
     case MONS_NAMELESS_REVENANT:
         // If we are engaging the player and have full memories, burn one fairly
         // immediately.
         if (mons->foe == MHITYOU && mons->can_see(you)
-            && mons->props[NOBODY_MEMORIES_KEY].get_vector().size() == 3
+            && mons->props[NOBODY_MEMORIES_KEY].get_vector().size() == NOBODY_MAX_MEMORIES
             && one_chance_in(3))
         {
             pyrrhic_recollection(*mons);
             used = true;
-        }
-
-        // If Nobody is left alone long enough, allow their memories to return.
-        if (you.elapsed_time > mons->props[NOBODY_RECOVERY_KEY].get_int())
-        {
-            mons->props.erase(NOBODY_RECOVERY_KEY);
-            initialize_nobody_memories(*mons);
         }
 
         break;
@@ -1233,13 +1237,12 @@ bool egg_is_incubating(const monster& egg)
     if (!parent || !adjacent(parent->pos(), egg.pos()))
         return false;
 
-    // Finally, check that there are foes sufficiently nearby (and also in the
+    // Finally, check that there are foes sufficiently nearby (and in the
     // parent's LoS)
-    for (monster_near_iterator mi(&egg, LOS_NO_TRANS); mi; ++mi)
+    for (monster_near_iterator mi(parent, LOS_NO_TRANS); mi; ++mi)
     {
         if (!mons_aligned(*mi, &egg) && !mi->is_firewood()
-            && grid_distance(egg.pos(), mi->pos()) <= 4
-            && parent->see_cell(mi->pos()))
+            && grid_distance(egg.pos(), mi->pos()) <= 4)
         {
             return true;
         }
@@ -1290,7 +1293,7 @@ void initialize_nobody_memories(monster& nobody)
     for (size_t i = 0; i < _recollections.size(); ++i)
         weights.push_back({i, _recollections[i].weight});
 
-    for (int i = 0; i < 3; ++i)
+    for (int i = 0; i < NOBODY_MAX_MEMORIES; ++i)
     {
         const int index = *random_choose_weighted(weights);
         memories.push_back(index);
@@ -1385,4 +1388,163 @@ bool pyrrhic_recollection(monster& nobody)
     avoided_death_fineff::schedule(&nobody);
 
     return true;
+}
+
+// AoE attack when the player attacks in scarab form
+void solar_ember_blast()
+{
+    monster* ember = get_solar_ember();
+    if (!ember)
+        return;
+
+    if (!ember->has_ench(ENCH_SPELL_CHARGED))
+    {
+        simple_monster_message(*ember, " glows brighter.");
+        ember->add_ench(mon_enchant(ENCH_SPELL_CHARGED, 0, ember, random_range(70, 90)));
+        return;
+    }
+
+    vector<monster*> targs;
+    for (adjacent_iterator ai(ember->pos()); ai; ++ai)
+        if (monster* mon = monster_at(*ai))
+            if (!mons_aligned(ember, mon) && !mon->is_firewood() && you.see_cell_no_trans(mon->pos()))
+                targs.push_back(mon);
+
+    if (targs.empty())
+        return;
+
+    simple_monster_message(*ember, " blazes with a fierce heat.", false, MSGCH_FRIEND_SPELL);
+
+    bolt beam;
+    beam.flavour = BEAM_FIRE;
+    dice_def dmg = get_form()->get_special_damage();
+    for (monster* mon : targs)
+    {
+        if (!mon->alive())
+            continue;
+
+        flash_tile(mon->pos(), RED, 0);
+        const int damage_done = mons_adjust_flavoured(mon, beam, mon->apply_ac(dmg.roll()));
+        mprf("The solar flare engulfs %s%s.", mon->name(DESC_THE).c_str(),
+                damage_done ? "" : " but does no damage");
+        mon->hurt(ember, damage_done, BEAM_FIRE);
+    }
+
+    animation_delay(10, true);
+
+    ember->hurt(ember, random_range(7, 10));
+    ember->del_ench(ENCH_SPELL_CHARGED);
+}
+
+void activate_tesseracts()
+{
+    if (you.props.exists(TESSERACT_SPAWN_COUNTER_KEY))
+        return;
+
+    bool did_activate = false;
+    for (monster_iterator mi; mi; ++mi)
+    {
+        if (mi->type != MONS_BOUNDLESS_TESSERACT)
+            continue;
+
+        behaviour_event(*mi, ME_ALERT);
+        env.map_knowledge(mi->pos()).set_monster(monster_info(*mi));
+        set_terrain_seen(mi->pos());
+        view_update_at(mi->pos());
+#ifdef USE_TILE
+        tiles.update_minimap(mi->pos());
+#endif
+
+        if (!did_activate)
+        {
+            mprf(MSGCH_WARN, "You feel the power of Zot begin to gather its forces!");
+            mark_milestone("tesseract.activate", "activated a tesseract");
+            mi->props[TESSERACT_SPAWN_TIMER_KEY] = you.elapsed_time;
+            mi->props[TESSERACT_XP_KEY] = 15000;
+            tesseract_action(**mi);
+            did_activate = true;
+
+            // Tracked on the player instead of the monster so status lookup is quicker.
+            you.props[TESSERACT_SPAWN_COUNTER_KEY] = 0;
+        }
+    }
+}
+
+void tesseract_action(monster& mon)
+{
+    // Only operate logic on a single tesseract on the floor
+    if (!mon.props.exists(TESSERACT_SPAWN_TIMER_KEY))
+        return;
+
+    // Handle regular spawning
+    int& timer = mon.props[TESSERACT_SPAWN_TIMER_KEY].get_int();
+    int& count = you.props[TESSERACT_SPAWN_COUNTER_KEY].get_int();
+
+    // Don't act as if more than 500 turns have passed off-level. (It only runs
+    // off-level at all to prevent it being correct to return to Zot:4 every
+    // time you want to rest, and this is hopefully long enough to cover those
+    // situations.)
+    if (you.elapsed_time - timer > 5000)
+        timer = you.elapsed_time - 5000;
+
+    // Exit early if it's not yet time to spawn things.
+    if (you.elapsed_time < timer)
+        return;
+
+    // Count number of both tesseract spawns and remaining non-tesseract
+    // monsters on the floor.
+    int spawn_count = 0;
+    int non_spawn_count = 0;
+    for (monster_iterator mi; mi; ++mi)
+    {
+        if (mi->props.exists(TESSERACT_CREATED_KEY))
+            ++spawn_count;
+        else if (!mi->is_summoned() && !mi->is_peripheral() && !mi->wont_attack())
+            ++non_spawn_count;
+    }
+
+    // Cap number of tesseract spawns at 60, and total number of monsters on the
+    // floor at 100 (which is above the average starting monster count, but not
+    // the *maximum* starting monster count).
+    int allowed = min(60 - spawn_count, 100 - spawn_count - non_spawn_count);
+
+    // Catch up however many spawns should have happened since the last time
+    // we activated.
+    while (you.elapsed_time >= timer && allowed > 0)
+    {
+        // Spawn the earliest monsters from the tesseract more quickly, then
+        // slow down to a constant rate.
+        const int interval = 70 + (min(15, count) * 50 / 2);
+        timer += random_range(interval, interval * 5 / 4);
+
+        mgen_data mg(one_chance_in(6) ? MONS_ORB_GUARDIAN : WANDERING_MONSTER);
+        mg.place = level_id::current();
+        mg.place.depth = 7;
+        mg.flags |= MG_FORBID_BANDS;
+        mg.foe = MHITYOU;
+        mg.non_actor_summoner = "a Boundless Tesseract";
+        mg.proximity = PROX_AWAY_FROM_PLAYER;
+        if (count >= 80 && one_chance_in(4))
+            mg.proximity = PROX_CLOSE_TO_PLAYER;
+
+        monster* spawn = mons_place(mg);
+
+        if (!spawn)
+            continue;
+
+        // Allow the monster to be a normal monster if there is XP left in our
+        // pool; otherwise, make them unrewarding (to make early spawns feel
+        // less unfun while still removing any incentive to farm them).
+        int& xp_pool = mon.props[TESSERACT_XP_KEY];
+        int xp = exp_value(*spawn);
+
+        if (xp_pool >= xp)
+            xp_pool -= xp;
+        else
+            spawn->flags |= (MF_HARD_RESET | MF_NO_REWARD);
+
+        spawn->props[TESSERACT_CREATED_KEY] = true;
+        --allowed;
+        ++count;
+    }
 }

@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cstring>
 
+#include "abyss.h"
 #include "ability.h"
 #include "areas.h"
 #include "artefact.h"
@@ -169,6 +170,8 @@ const char* EquipOnDelay::get_verb()
     }
     else if (you.has_mutation(MUT_FORMLESS))
         return "haunting";
+    else if (equip.base_type == OBJ_ARMOUR && you.form == transformation::fortress_crab)
+        return "fusing with";
     else
         return "putting on";
 }
@@ -209,6 +212,8 @@ const char* EquipOffDelay::get_verb()
     }
     else if (you.has_mutation(MUT_FORMLESS))
         return "removing yourself from";
+    else if (equip.base_type == OBJ_ARMOUR && you.form == transformation::fortress_crab)
+        return "unfusing";
     else
         return "removing";
 }
@@ -739,6 +744,10 @@ void EquipOffDelay::finish()
 {
     mprf("You finish %s %s.", get_verb(), equip.name(DESC_YOUR).c_str());
     unequip_item(equip);
+
+    // Banishment via coglin distortion unwield might not happen until the turn
+    // after unwielding, otherwise.
+    check_banished();
 }
 
 void MemoriseDelay::finish()
@@ -889,7 +898,7 @@ void TransformDelay::finish()
     }
 
     set_default_form(form, talisman);
-    return_to_default_form();
+    return_to_default_form(true);
 }
 
 void run_macro(const char *macroname)
@@ -1125,9 +1134,10 @@ static inline bool _monster_warning(activity_interrupt ai,
         else if (at.context == SC_FISH_SURFACES)
         {
             text += " bursts forth from the ";
-            if (mons_primary_habitat(*mon) == HT_LAVA)
+            const habitat_type habitat = mons_habitat(*mon);
+            if (habitat & HT_LAVA)
                 text += "lava";
-            else if (mons_primary_habitat(*mon) == HT_WATER)
+            else if (habitat & HT_WATER)
                 text += "water";
             else
                 text += "realm of bugdom";
@@ -1212,6 +1222,8 @@ static inline bool _monster_warning(activity_interrupt ai,
         }
         if (should_shout_at_mons(*mon))
             yell(mon);
+        else if (you.form == transformation::maw)
+            maw_growl_check(mon);
         mons_set_just_seen(mon);
     }
 

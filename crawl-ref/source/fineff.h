@@ -10,6 +10,7 @@
 #include "beh-type.h"
 #include "env.h"
 #include "mgen-data.h"
+#include "mon-death.h"
 #include "mon-util.h"
 #include "monster.h"
 
@@ -267,6 +268,7 @@ enum explosion_fineff_type : int {
     EXPLOSION_FINEFF_GENERIC,
     EXPLOSION_FINEFF_INNER_FLAME,
     EXPLOSION_FINEFF_CONCUSSION,
+    EXPLOSION_FINEFF_PYROMANIA,
 };
 
 class explosion_fineff : public final_effect
@@ -418,6 +420,7 @@ public:
         const int realhp = mons->hit_points;
         mons->hit_points = -realhp;
         mons->flags |= MF_PENDING_REVIVAL;
+        mons->props.erase(ATTACK_KILL_KEY);
         final_effect::schedule(new avoided_death_fineff(mons, realhp));
     }
 protected:
@@ -453,21 +456,24 @@ public:
     void fire() override;
 
     static void schedule(coord_def pos, mgen_data mg, int xl,
-                         const string &agent, const string &msg)
+                         const string &agent, const string &msg,
+                         bool act_immediately = false)
     {
-        final_effect::schedule(new make_derived_undead_fineff(pos, mg, xl, agent, msg));
+        final_effect::schedule(new make_derived_undead_fineff(pos, mg, xl, agent, msg, act_immediately));
     }
 protected:
     make_derived_undead_fineff(coord_def pos, mgen_data _mg, int _xl,
-                               const string &_agent, const string &_msg)
+                               const string &_agent, const string &_msg,
+                               bool _act_immediately)
         : final_effect(0, 0, pos), mg(_mg), experience_level(_xl),
-          agent(_agent), message(_msg)
+          agent(_agent), message(_msg), act_immediately(_act_immediately)
     {
     }
     mgen_data mg;
     int experience_level;
     string agent;
     string message;
+    bool act_immediately;
 };
 
 class mummy_death_curse_fineff : public final_effect
@@ -646,6 +652,47 @@ protected:
 
     const item_def* weapon;
 };
+
+class stardust_fineff : public final_effect
+{
+public:
+    bool mergeable(const final_effect &/*a*/) const override { return true; };
+    void fire() override;
+
+    static void schedule(actor* agent, int power, int max_stars)
+    {
+        final_effect::schedule(new stardust_fineff(agent, power, max_stars));
+    }
+protected:
+    stardust_fineff(actor* agent, int _power, int _max)
+        : final_effect(agent, nullptr, you.pos()), power(_power), max_stars(_max)
+    {
+    }
+
+    int power;
+    int max_stars;
+};
+
+class pyromania_fineff : public final_effect
+{
+public:
+    bool mergeable(const final_effect &/*a*/) const override { return true; };
+    void fire() override;
+
+    static void schedule()
+    {
+        final_effect::schedule(new pyromania_fineff());
+    }
+protected:
+    pyromania_fineff()
+        : final_effect(&you, nullptr, you.pos())
+    {
+    }
+
+    int count;
+    int power;
+};
+
 
 
 void fire_final_effects();

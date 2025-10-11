@@ -21,6 +21,7 @@
 #include "misc.h" // december_holidays
 #include "mon-place.h"
 #include "mpr.h"
+#include "randbook.h"
 #include "religion.h" // upgrade_hepliaklqana_weapon
 #include "state.h"
 #include "stringutil.h"
@@ -456,6 +457,15 @@ int make_mons_weapon(monster_type type, int level, bool melee_only)
         { MONS_GOBLIN,                  { GOBLIN_WEAPONS } },
         { MONS_JESSICA,                 { GOBLIN_WEAPONS } },
         { MONS_IJYB,                    { GOBLIN_WEAPONS } },
+        { MONS_SPROZZ,
+            { { { WPN_SPEAR,            8 },
+                { WPN_TRIDENT,          3 },
+                { WPN_DAGGER,           6 },
+                { WPN_SHORT_SWORD,      6 },
+                { WPN_FALCHION,         6 },
+                { WPN_MACE,             9 },
+                { WPN_HAND_AXE,         5 },
+            } } },
         { MONS_WIGHT,
             { { { WPN_MORNINGSTAR,      4 },
                 { WPN_DIRE_FLAIL,       4 },
@@ -479,14 +489,13 @@ int make_mons_weapon(monster_type type, int level, bool melee_only)
                 { WPN_FLAIL,            2 },
         }, {}, {}, 1 } },
         { MONS_DEATH_KNIGHT,
-            { { { WPN_MORNINGSTAR,      5 },
-                { WPN_GREAT_MACE,       5 },
-                { WPN_HALBERD,          5 },
+            { { { WPN_GREAT_MACE,       5 },
+                { WPN_HALBERD,          6 },
                 { WPN_GREAT_SWORD,      5 },
-                { WPN_GLAIVE,           8 },
+                { WPN_GLAIVE,           10 },
                 { WPN_BROAD_AXE,        10 },
-                { WPN_BATTLEAXE,        15 },
-        }, {2, 1, 4} } },
+                { WPN_BATTLEAXE,        16 },
+        }, {2, 1, 4}, { { SPWPN_DRAINING, 1 }, { NUM_SPECIAL_WEAPONS, 1 }, } } },
         { MONS_GNOLL,                   { GNOLL_WEAPONS } },
         { MONS_OGRE_MAGE,               { GNOLL_WEAPONS } },
         { MONS_NAGA_MAGE,               { GNOLL_WEAPONS } },
@@ -605,6 +614,7 @@ int make_mons_weapon(monster_type type, int level, bool melee_only)
         { MONS_FRANCES,                 { NAGA_WEAPONS } },
         { MONS_HAROLD,                  { NAGA_WEAPONS } },
         { MONS_SKELETAL_WARRIOR,        { NAGA_WEAPONS } },
+        { MONS_DRAUGR,                  { NAGA_WEAPONS } },
         { MONS_PALE_DRACONIAN,          { NAGA_WEAPONS } },
         { MONS_RED_DRACONIAN,           { NAGA_WEAPONS } },
         { MONS_WHITE_DRACONIAN,         { NAGA_WEAPONS } },
@@ -658,6 +668,12 @@ int make_mons_weapon(monster_type type, int level, bool melee_only)
         } } },
         { MONS_IRONBOUND_CONVOKER,      { IRON_WEAPONS } },
         { MONS_IRONBOUND_PRESERVER,     { IRON_WEAPONS } },
+        { MONS_IRONBOUND_MECHANIST,
+            { { { WPN_WAR_AXE,          4 },
+                { WPN_BROAD_AXE,        1 },
+                { WPN_TRIDENT,          3 },
+                { WPN_PARTISAN,         1 },
+        } } },
         { MONS_SIGMUND, { { { WPN_HALBERD, 1 } } } },
         { MONS_REAPER, { { { WPN_HALBERD, 1 } }, {}, {}, 1 } },
         { MONS_BALRUG, { { { WPN_DEMON_WHIP, 1 } } } },
@@ -704,6 +720,7 @@ int make_mons_weapon(monster_type type, int level, bool melee_only)
         } } },
         { MONS_MERFOLK_AQUAMANCER, { { { WPN_RAPIER, 1 } }, {}, {}, 2 } },
         { MONS_MERFOLK_JAVELINEER, { { { WPN_SPEAR, 1 } } } },
+        { MONS_GOBLIN_RIDER, { { { WPN_SPEAR, 1 } } } },
         { MONS_SPRIGGAN_RIDER, { { { WPN_SPEAR, 1 } } } },
         { MONS_MERFOLK, { { { WPN_TRIDENT, 1 } } } },
         { MONS_MERFOLK_SIREN,
@@ -715,6 +732,16 @@ int make_mons_weapon(monster_type type, int level, bool melee_only)
                 { WPN_ARBALEST,         31 },
                 { WPN_HAND_CANNON,      1 },
         } } },
+        { MONS_KOBOLD_FLESHCRAFTER, {
+            { { WPN_DAGGER,            3 },
+              { WPN_RAPIER,            1 },
+              { WPN_SCIMITAR,          2 },
+              { WPN_DEMON_BLADE,       1 }, },
+              { 1, 1, 3 }, { { SPWPN_VENOM, 12 },
+                             { SPWPN_DRAINING, 8 },
+                             { SPWPN_PAIN, 3 },
+                             { SPWPN_CHAOS, 1 },
+                             { NUM_SPECIAL_WEAPONS, 8 }  }, } },
         { MONS_CENTAUR,
             { { { WPN_SHORTBOW,         1 },
                 { WPN_ORCBOW,           1 },
@@ -868,16 +895,12 @@ int make_mons_weapon(monster_type type, int level, bool melee_only)
         { MONS_DOWAN,           { { { WPN_DAGGER, 1 } } } },
         { MONS_BURIAL_ACOLYTE,  { { { WPN_DAGGER, 1 } } } },
         { MONS_KOBOLD_DEMONOLOGIST, { { { WPN_DAGGER, 1 } } } },
+        { MONS_KOBOLD_GEOMANCER, { { { WPN_DAGGER, 1 } } } },
         { MONS_NECROMANCER,      { { { WPN_DAGGER, 1 } } } },
         { MONS_ARCANIST,         { { { WPN_DAGGER, 1 } } } },
         { MONS_OCCULTIST,        { { { WPN_DAGGER, 1 } } } },
         { MONS_JOSEPHINE,        { { { WPN_DAGGER, 1 } } } },
-        { MONS_PSYCHE, {
-            { { WPN_DAGGER,             1 }, },
-            { 1, 0, 4 },
-            { { SPWPN_CHAOS, 3 },
-              { SPWPN_DISTORTION, 1 } },
-        } },
+        { MONS_CASSANDRA,        { { { WPN_DAGGER, 1 } } } },
         { MONS_AGNES,       { { { WPN_LAJATANG, 1 } } } },
         { MONS_SONJA, {
             { { WPN_DAGGER,             1 },
@@ -1132,6 +1155,11 @@ int make_mons_weapon(monster_type type, int level, bool melee_only)
         }
         break;
 
+    case MONS_GOBLIN_RIDER:
+        if (coinflip())
+            level = ISPEC_GOOD_ITEM;
+        break;
+
     case MONS_GNOLL:
         if (!level && item.is_type(OBJ_WEAPONS, WPN_HALBERD))
             item.sub_type = WPN_CLUB;
@@ -1309,7 +1337,8 @@ int make_mons_weapon(monster_type type, int level, bool melee_only)
         }
         break;
 
-        // As a violent thug, Throatcutter suits Terence perfectly.
+    // As someone who's learned the hard way that many have no honour in war,
+    // Throatcutter suits Terence perfectly.
     case MONS_TERENCE:
         if (one_chance_in(100) && !get_unique_item_status(UNRAND_THROATCUTTER))
         {
@@ -1424,12 +1453,13 @@ static void _give_weapon(monster *mon, int level, bool second_weapon = false)
 {
     ASSERT(mon); // TODO: change to monster &mon
 
-    if (mon->type == MONS_DEEP_ELF_BLADEMASTER && mon->weapon())
+    if ((mon->type == MONS_DEEP_ELF_BLADEMASTER || mon->type == MONS_IRONBOUND_MECHANIST)
+        && mon->weapon())
     {
-        const item_def &first_sword = *mon->weapon();
-        ASSERT(first_sword.base_type == OBJ_WEAPONS);
-        item_def twin_sword = first_sword; // copy
-        give_specific_item(mon, twin_sword);
+        const item_def &first_weapon = *mon->weapon();
+        ASSERT(first_weapon.base_type == OBJ_WEAPONS);
+        item_def twin_weapon = first_weapon; // copy
+        give_specific_item(mon, twin_weapon);
         return;
     }
 
@@ -1455,7 +1485,7 @@ static void _give_weapon(monster *mon, int level, bool second_weapon = false)
         make_item_for_monster(mon, OBJ_JEWELLERY, NUM_RINGS, 0, 1);
 
     if (mon->type == MONS_FANNAR && i.is_type(OBJ_WEAPONS, WPN_QUARTERSTAFF))
-        make_item_for_monster(mon, OBJ_JEWELLERY, RING_ICE, 0, 1);
+        make_item_for_monster(mon, OBJ_JEWELLERY, RING_PROTECTION_FROM_COLD, 0, 1);
 
     if (mon->type == MONS_WIGLAF)
     {
@@ -1469,7 +1499,17 @@ static void _give_weapon(monster *mon, int level, bool second_weapon = false)
     }
 
     if (mon->type == MONS_JOSEPHINA)
-        make_item_for_monster(mon, OBJ_JEWELLERY, RING_ICE, ISPEC_RANDART, true);
+        make_item_for_monster(mon, OBJ_JEWELLERY, RING_PROTECTION_FROM_COLD, ISPEC_RANDART, true);
+
+    if (mon->type == MONS_CASSANDRA && coinflip())
+    {
+        item_def* amu = make_item_for_monster(mon, OBJ_JEWELLERY, get_random_amulet_type(), 0, 1);
+        if (amu && one_chance_in(4))
+        {
+            amu->props[FIXED_PROPS_KEY].get_table()["Bane"] = 1;
+            make_item_randart(*amu);
+        }
+    }
 }
 
 // Hands out ammunition fitting the monster's launcher (if any), or else any
@@ -1689,16 +1729,16 @@ static void _give_shield(monster* mon, int level)
         shield = make_item_for_monster(mon, OBJ_ARMOUR, ARM_ORB, level);
         if (shield)
         {
-            // Light is good-coded and Wrath is too vicious.
-            const auto ego = random_choose(SPARM_MAYHEM, SPARM_ENERGY, SPARM_GUILE);
+            const auto ego = random_choose(SPARM_STARDUST, SPARM_MESMERISM,
+                                           SPARM_ENERGY, SPARM_GUILE);
             set_item_ego_type(*shield, OBJ_ARMOUR, ego);
         }
         break;
 
     case MONS_FREDERICK:
     {
-        // Divinity or conjurer support.
-        const auto ego = random_choose(SPARM_LIGHT, SPARM_ENERGY);
+        // Conjurer support.
+        const auto ego = random_choose(SPARM_STARDUST, SPARM_ENERGY);
 
         give_specific_item(mon, items(false, OBJ_ARMOUR,
                            ARM_ORB, ISPEC_RANDART, ego));
@@ -1881,6 +1921,7 @@ int make_mons_armour(monster_type type, int level)
     case MONS_DEEP_ELF_MASTER_ARCHER:
     case MONS_MERFOLK_JAVELINEER:
     case MONS_EUSTACHIO:
+    case MONS_SPROZZ:
         item.base_type = OBJ_ARMOUR;
         item.sub_type  = ARM_LEATHER_ARMOUR;
         break;
@@ -1936,6 +1977,7 @@ int make_mons_armour(monster_type type, int level)
     case MONS_VAULT_SENTINEL:
     case MONS_IRONBOUND_CONVOKER:
     case MONS_IRONBOUND_FROSTHEART:
+    case MONS_IRONBOUND_MECHANIST:
         item.base_type = OBJ_ARMOUR;
         item.sub_type  = random_choose(ARM_RING_MAIL, ARM_SCALE_MAIL);
         break;
@@ -2021,6 +2063,14 @@ int make_mons_armour(monster_type type, int level)
         item.sub_type = random_choose_weighted(3, ARM_STORM_DRAGON_ARMOUR,
                                                3, ARM_SHADOW_DRAGON_ARMOUR,
                                                6, ARM_FIRE_DRAGON_ARMOUR);
+        break;
+
+    case MONS_MARA:
+        item.base_type = OBJ_ARMOUR;
+        item.sub_type = random_choose_weighted(3, ARM_LEATHER_ARMOUR,
+                                               1, ARM_TROLL_LEATHER_ARMOUR,
+                                               1, ARM_ACID_DRAGON_ARMOUR);
+        level = ISPEC_GOOD_ITEM;
         break;
 
     case MONS_PARGHIT:
@@ -2142,7 +2192,7 @@ int make_mons_armour(monster_type type, int level)
     }
 
     case MONS_JOSEPHINE:
-    case MONS_PSYCHE:
+    case MONS_CASSANDRA:
         if (one_chance_in(5))
             level = ISPEC_GOOD_ITEM;
         item.base_type = OBJ_ARMOUR;
@@ -2172,12 +2222,13 @@ int make_mons_armour(monster_type type, int level)
     case MONS_DOWAN:
     case MONS_JESSICA:
     case MONS_KOBOLD_DEMONOLOGIST:
+    case MONS_KOBOLD_GEOMANCER:
+    case MONS_KOBOLD_FLESHCRAFTER:
     case MONS_OGRE_MAGE:
     case MONS_EROLCHA:
     case MONS_ARCANIST:
     case MONS_OCCULTIST:
     case MONS_ILSUIW:
-    case MONS_MARA:
     case MONS_RAKSHASA:
     case MONS_MERFOLK_AQUAMANCER:
     case MONS_SPRIGGAN:
@@ -2338,6 +2389,26 @@ void give_shield(monster *mons)
     _give_shield(mons, -1);
 }
 
+static void _give_book(monster* mon)
+{
+    // 50% chance of a randbook containing Clockwork Bee and maybe other
+    // Forgecraft spells.
+    if (mon->type == MONS_SPROZZ && coinflip())
+    {
+        const int book = items(false, OBJ_BOOKS, BOOK_CONSTRUCTION, 1);
+        if (book == NON_ITEM)
+            return;
+
+        const int num_spells = random_range(2, 3);
+        vector<spell_type> forced_spell = {SPELL_CLOCKWORK_BEE};
+        build_themed_book(env.item[book],
+            forced_spell_filter(forced_spell, capped_spell_filter(11)),
+            forced_book_theme(spschool::forgecraft), num_spells, "Sprozz");
+
+        give_specific_item(mon, book);
+    }
+}
+
 void give_item(monster *mons, int level_number, bool mons_summoned)
 {
     ASSERT(level_number > -1); // debugging absdepth0 changes
@@ -2349,6 +2420,7 @@ void give_item(monster *mons, int level_number, bool mons_summoned)
     _give_ammo(mons, level_number, mons_summoned);
     _give_armour(mons, 1 + level_number / 2);
     _give_shield(mons, 1 + level_number / 2);
+    _give_book(mons);
 
     if (mons->type == MONS_ORC_APOSTLE)
         give_apostle_equipment(mons);

@@ -267,14 +267,16 @@ TILE_EQ: olgreb
 VALUE:   1000
 
 NAME:    crystal ball of Wucad Mu
-INSCRIP: *channel
+INSCRIP: Mindtap
 OBJ:     OBJ_ARMOUR/ARM_ORB
+BRAND:   SPARM_ENERGY
 COLOUR:  ETC_MAGIC
 TILE:    urand_wucad_mu
 TILE_EQ: orb_of_wucad_mu
 VALUE:   1000
-DESCRIP: *Channel:  It often returns the magic spent to cast spells, but lowers
- their success rate. It always returns the magic spent on miscasts.
+DESCRIP: Mindtap:  Whenever a successful spell causes magic to be channelled
+         from it, it may also drain additional magic from other enemies in
+         sight, with a chance increasing with spell level.
 
 NAME:    Vampire's Tooth
 OBJ:     OBJ_WEAPONS/WPN_QUICK_BLADE
@@ -410,16 +412,16 @@ BOOL:    poison, skip_ego, deleted
 WILL:    1
 # end TAG_MAJOR_VERSION
 
-NAME:    eveningstar "Brilliance"
-OBJ:     OBJ_WEAPONS/WPN_EVENINGSTAR
-PLUS:    +1
-INSCRIP: Umbra
-COLOUR:  ETC_FOUL_FLAME
-TILE:    urand_brilliance
-TILE_EQ: eveningstar_brilliance
-BRAND:   SPWPN_FOUL_FLAME
+NAME:     eveningstar "Brilliance"
+OBJ:      OBJ_WEAPONS/WPN_EVENINGSTAR
+PLUS:     +1
+INSCRIP:  Umbra
+COLOUR:   ETC_FOUL_FLAME
+TILE:     urand_brilliance
+TILE_EQ:  eveningstar_brilliance
+BRAND:    SPWPN_FOUL_FLAME
 FB_BRAND: SPWPN_PAIN
-DESCRIP: Umbra:     It surrounds you with an aura of shadow, increasing your
+DESCRIP:  Umbra:     It surrounds you with an aura of shadow, increasing your
  stealth and reducing the accuracy of all others within it.
 
 NAME:    demon blade "Leech"
@@ -552,17 +554,17 @@ BOOL:    evil
 DBRAND:  Damnation: Any ammunition fired from it explodes in a burst of
  damnation on striking a foe, dealing damage which bypasses armour.
 
-NAME:    sword of the Doom Knight
+NAME:    sword of the Dread Knight
 OBJ:     OBJ_WEAPONS/WPN_GREAT_SWORD
 PLUS:    +13
-INSCRIP: doom
+INSCRIP: decimate
 COLOUR:  BLUE
-TILE:    urand_doom_knight
-TILE_EQ: doom_knight
+TILE:    urand_dread_knight
+TILE_EQ: dread_knight
 FB_BRAND: SPWPN_PAIN
 WILL:    1
 BOOL:    silence, evil, drain
-DBRAND:  Doom: It inflicts additional damage proportional to its victim's
+DBRAND:  Decimate: It inflicts additional damage proportional to its victim's
  maximum health.
 
 NAME:    morningstar "Eos"
@@ -704,6 +706,7 @@ DESCRIP:  Stab:      It is more effective when stabbing unaware enemies,
 
 NAME:    plutonium sword
 OBJ:     OBJ_WEAPONS/WPN_TRIPLE_SWORD
+INSCRIP: mutate,
 FB_BRAND: SPWPN_CHAOS
 PLUS:    +11
 COLOUR:  ETC_MUTAGENIC
@@ -788,6 +791,7 @@ INSCRIP:  penet
 DBRAND:   Penet:     Any ammunition fired by it passes through the targets it
  hits, potentially hitting all targets in its path until it reaches maximum
  range.
+BOOL:    tilerim
 
 NAME:    tower shield of Ignorance
 OBJ:     OBJ_ARMOUR/ARM_TOWER_SHIELD
@@ -847,7 +851,6 @@ INSCRIP:  Bear,
 COLOUR:   DARKGREY
 TILE:     urand_bear
 TILE_EQ:  bear
-# TODO: why isn't this brand working on the fallback?
 BRAND:    SPARM_SPIRIT_SHIELD
 ANGRY:    20
 WILL:     2
@@ -974,12 +977,15 @@ BOOL:    silence, notelep, elec, rCorr
 ENUM:    DRAGONMASK
 NAME:    mask of the Dragon
 OBJ:     OBJ_ARMOUR/ARM_HAT
+PLUS:    +2
+INSCRIP: Dragonpray
 COLOUR:  ETC_SHIMMER_BLUE
 TILE:    urand_dragonmask
 TILE_EQ: art_dragonhelm
-WILL:    1
-SLAY:    3
 BOOL:    seeinv
+DESCRIP: Dragonpray: It occasionally summons a dragon when using Invocations
+ with hostile monsters in sight. Chance is 10% + twice the piety cost of the
+ ability used.
 
 NAME:     robe of Night
 OBJ:      OBJ_ARMOUR/ARM_ROBE
@@ -1001,7 +1007,7 @@ PLUS:    +9
 COLOUR:  ETC_GOLD
 TILE:    urand_dragon_king
 TILE_EQ: dragonarm_golden
-WILL:    1
+BRAND:   SPARM_COMMAND
 
 NAME:    hat of the Alchemist
 OBJ:     OBJ_ARMOUR/ARM_HAT

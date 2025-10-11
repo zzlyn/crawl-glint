@@ -182,6 +182,17 @@ once you have no more left (or after a short period of time, regardless).
 At your current experience level, you can hold enough memories to cast a maximum
 of {{return 3 + math.floor(you.xl() * 3 / 20);}} spells in a row this way.
 %%%%
+Breathe Rust ability
+
+Exhales a blast of oxidizing vapour that continuously corrodes and weakens the
+attacks of creatures which stand inside it. These clouds are long-lasting, but
+do only minimal damage.
+%%%%
+Golden Breath ability
+
+Exhales a powerful blast of elemental devastation, which inflicts both fire and
+cold damage, and leaves clouds of poisonous vapour in its wake.
+%%%%
 # Zin
 Recite ability
 
@@ -294,8 +305,8 @@ Hurl Torchlight ability
 
 Hurls a gout of umbral fire from the Black Torch, which deals irresistible
 damage to living, demonic, and holy beings. The torchlight will also briefly
-empower any of your undead servants caught in its blast, and is harmless to its
-user. The damage is increased by Invocations skill.
+empower any of your undead servants caught in its blast, and is harmless to
+those who worship Yredelemnul. The damage is increased by Invocations skill.
 
 This ability can be used only while the torch is lit, and only a limited number
 of times on each floor. The number of uses available per floor increases with
@@ -554,7 +565,7 @@ ability will leave your health depleted.
 %%%%
 Brand Weapon With Distortion ability
 
-Permanently corrupts a weapon of your choice with a localised field of
+Permanently corrupts a melee weapon of your choice with a localised field of
 distortion. This blessing may only be used once, and it cannot be used on
 artefact weapons.
 %%%%
@@ -742,8 +753,10 @@ Invocations skill increases the duration of the effect.
 # Gozag
 Potion Petition ability
 
-Petitions Gozag to sell you the effects of a set of potions. Gozag will offer
-three lists at a time, with varying prices.
+Petitions Gozag to sell you the effects of a set of potions. (These effects will
+be applied instantly and directly to the petitioner, rather than being provided
+or being drunk as a normal potion.) Gozag will offer three lists at a time, with
+varying prices.
 %%%%
 Call Merchant ability
 
@@ -804,11 +817,11 @@ Sacrifices purity of body or mind, causing a single mutation.
 %%%%
 Sacrifice Words ability
 
-Sacrifices the ability to use magical scrolls after being injured.
+Sacrifices the ability to use magical scrolls unless badly injured.
 %%%%
 Sacrifice Drink ability
 
-Sacrifices the ability to drink potions after being injured.
+Sacrifices the ability to drink potions unless badly injured.
 %%%%
 Sacrifice Essence ability
 
@@ -1061,3 +1074,32 @@ Causes the caster to radiate toxic energy, continuously inflicting poison on
 everything in line of sight for as long as the aura lasts. The power of this
 ability scales with the Evocations skill, and this ability is available only
 while wielding the Staff of Olgreb.
+%%%%
+Jump ability
+
+Leaps through the air in the blink of an eye. While it is impossible to control
+your destination, the movement is so abrupt and agile that no monster will be
+able to land a blow on you until you can act again, and many may lose track of
+your position entirely.
+
+You must spend a short while recovering between each use of this ability.
+%%%%
+Watery Grave ability
+
+Turns all of the water near you into a surging tide that attempts to drown every
+enemy standing in or above it. Those who need air to breathe it will also become
+Waterlogged, preventing them from casting spells affected by Silence for several
+turns.
+
+After using this ability, you must gain experience points before you can recover
+enough power to use it again.
+%%%%
+Bestial Takedown ability
+
+Unleashes the full power of your predatory instincts to leap towards a terrified
+enemy and perform a vicious melee attack against them. This attack receives a
+damage multiplier based on your Shapeshifting skill. If it kills them, you will
+always perform a Howl afterward.
+
+Can only target an enemy who is afraid, and who has at least one occupiable tile
+adjacent to them.

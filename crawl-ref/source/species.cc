@@ -223,8 +223,9 @@ namespace species
         case SP_PALE_DRACONIAN:
             return MONS_STEAM_DRAGON;
         case SP_RED_DRACONIAN:
-        default:
             return MONS_FIRE_DRAGON;
+        default:
+            return MONS_GOLDEN_DRAGON;
         }
     }
 
@@ -387,6 +388,19 @@ namespace species
     {
         auto verb = get_species_def(sp).orc_name;
         return verb ? verb : "Orc";
+    }
+
+    /**
+     * What is an appropriate orcification message for orcs of this species?
+     *
+     *  @param sp what kind of species to look at
+     *  @returns a string describing 'orcification'.
+     */
+    string orcification_msg(species_type sp)
+    {
+        auto msg = get_species_def(sp).orcification_msg;
+        return msg ? msg
+                   : "Your teeth grow more tusk-like, and your ears lengthen.";
     }
 
     /**
@@ -606,7 +620,7 @@ namespace species
 
 int draconian_breath_uses_available()
 {
-    if (!species::is_draconian(you.species))
+    if (!species::is_draconian(you.species) && you.form != transformation::dragon)
         return 0;
 
     if (!you.props.exists(DRACONIAN_BREATH_USES_KEY))
@@ -642,7 +656,9 @@ void give_level_mutations(species_type species, int xp_level)
         if (lum.xp_level == xp_level)
         {
             // XX: perma_mutate() doesn't handle prior conflicting innate muts,
-            // so we skip this mut if this occurs, e.g. through a Ru sacrifice.
+            // so we skip this mut if this occurs to avoid an assert. Ru
+            // sacrifices can be a source of this, so make sure any conflicts
+            // are handled by _sac_mut_maybe_valid!
             if (mut_check_conflict(lum.mut, true))
                 continue;
 

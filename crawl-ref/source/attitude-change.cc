@@ -99,7 +99,7 @@ void beogh_follower_convert(monster* mons, bool orc_hit)
     const int hd = mons->get_experience_level();
 
     if (have_passive(passive_t::convert_orcs)
-        && random2(you.piety / 15) + random2(4 + you.experience_level / 3)
+        && random2(you.piety() / 15) + random2(4 + you.experience_level / 3)
              > random2(hd) + hd + random2(5))
     {
         conv_t ctype = conv_t::sight;
@@ -328,7 +328,7 @@ void gozag_check_bribe(monster* traitor)
     if (branch_bribe[branch] == 0)
         return; // Do nothing if branch isn't currently bribed.
 
-    const int base_cost = max(1, exper_value(*traitor, true, true) / 20);
+    const int base_cost = max(1, exp_value(*traitor, true, true) / 20);
 
     int cost = 0;
 

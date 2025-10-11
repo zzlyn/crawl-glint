@@ -78,6 +78,12 @@ MIRET1(boolean, is_safe, is(MB_SAFE))
  * @function is_firewood
  */
 MIRET1(boolean, is_firewood, is(MB_FIREWOOD))
+/*** Is this monster currently immune to damage from the player (due to Warding
+ *   or another effect)
+ * @treturn boolean
+ * @function is_damage_immune
+ */
+MIRET1(boolean, is_damage_immune, is(MB_PLAYER_DAMAGE_IMMUNE))
 /*** The monster's current attitude.
  * A numerical value representing the monster's attitude. Possible values:
  *
@@ -675,7 +681,7 @@ LUAFN(moninf_get_can_be_constricted)
 {
     MONINF(ls, 1, mi);
     if (!mi->constrictor_name.empty()
-        || !form_keeps_mutations()
+        || form_changes_anatomy()
         || (you.get_mutation_level(MUT_CONSTRICTING_TAIL) < 2
                 || you.is_constricting())
             && (you.has_mutation(MUT_TENTACLE_ARMS)
@@ -912,6 +918,7 @@ static const struct luaL_reg moninf_lib[] =
     MIREG(flags),
     MIREG(is_safe),
     MIREG(is_firewood),
+    MIREG(is_damage_immune),
     MIREG(stabbability),
     MIREG(holiness),
     MIREG(intelligence),

@@ -349,6 +349,11 @@ depths_crumbled_column DEPTHS_CRUMBLED_COLUMN
 # Statues in Dis
 statue_iron DNGN_STATUE_IRON
 
+# The zot orb statues.
+zot_fire_orb_statue DNGN_ZOT_FIRE_STATUE
+zot_winter_orb_statue DNGN_ZOT_WINTER_STATUE
+zot_entropy_orb_statue DNGN_ZOT_ENTROPY_STATUE
+
 ## Features only used in certain minivaults
 %sdir dngn/vaults
 
@@ -484,6 +489,7 @@ djembe_set DNGN_DJEMBE
 ensign_beogh DNGN_ENSIGN_BEOGH
 ensign_dark DNGN_ENSIGN_DARK
 ensign_gehenna DNGN_ENSIGN_GEHENNA
+bottled_spirits DNGN_BOTTLED_SPIRITS
 ## preferably have more of these
 %weight 10
 skull_pike_1 DNGN_SKULL_PIKE
@@ -502,6 +508,7 @@ fountain_xom DNGN_FOUNTAIN_NOVELTY_XOM
 ##
 stone_smooth_beogh_0 STONE_SMOOTH_WALL_BEOGH
 stone_smooth_beogh_1
+gilded_reliquary DNGN_GILDED_RELIQUARY
 
 %sdir dngn/wall
 spike_launcher DNGN_SPIKE_LAUNCHER
@@ -572,6 +579,10 @@ escape_hatch_down DNGN_ESCAPE_HATCH_DOWN
 escape_hatch_up DNGN_ESCAPE_HATCH_UP
 shoals_stairs_down DNGN_SHOALS_STAIRS_DOWN
 shoals_stairs_up DNGN_SHOALS_STAIRS_UP
+metal_stairs_down DNGN_METAL_STAIRS_DOWN
+metal_stairs_up DNGN_METAL_STAIRS_UP
+zot_stairs_down DNGN_ZOT_STAIRS_DOWN
+zot_stairs_up DNGN_ZOT_STAIRS_UP
 enter DNGN_ENTER
 %rim 1
 return DNGN_RETURN
@@ -681,6 +692,7 @@ volcano_portal DNGN_PORTAL_VOLCANO
 volcano_gone DNGN_PORTAL_VOLCANO_GONE
 volcano_exit DNGN_EXIT_VOLCANO
 sewer_portal DNGN_PORTAL_SEWER
+sewer_exit DNGN_EXIT_SEWER
 sewer_portal_rusted DNGN_PORTAL_SEWER_RUSTED
 ice_cave_portal DNGN_PORTAL_ICE_CAVE
 ice_cave_gone DNGN_PORTAL_ICE_CAVE_GONE
@@ -696,8 +708,10 @@ wizlab_portal6
 wizlab_portal7
 wizlab_gone DNGN_PORTAL_WIZLAB_GONE
 ossuary_portal DNGN_PORTAL_OSSUARY
+ossuary_exit DNGN_EXIT_OSSUARY
 ossuary_gone DNGN_PORTAL_OSSUARY_GONE
 bailey_portal DNGN_PORTAL_BAILEY
+bailey_exit DNGN_EXIT_BAILEY
 bailey_gone DNGN_PORTAL_BAILEY_GONE
 gauntlet_portal DNGN_PORTAL_GAUNTLET
 gauntlet_gone DNGN_PORTAL_GAUNTLET_GONE
@@ -708,7 +722,9 @@ bazaar_gone DNGN_PORTAL_BAZAAR_GONE
 zig_portal DNGN_PORTAL_ZIGGURAT
 zig_used DNGN_PORTAL_ZIGGURAT_GONE
 desolation_portal DNGN_PORTAL_DESOLATION
+desolation_exit DNGN_EXIT_DESOLATION
 desolation_portal_closed DNGN_PORTAL_DESOLATION_GONE
+crucible_exit DNGN_EXIT_CRUCIBLE
 
 portal_unknown DNGN_UNKNOWN_PORTAL
 
@@ -822,6 +838,8 @@ dry_fountain DNGN_DRY_FOUNTAIN
 %lum 0 45
 %repeat DNGN_DRY_FOUNTAIN DNGN_DRY_FOUNTAIN_WHITE
 %resetcol
+
+decorative_floor DNGN_DECORATIVE_FLOOR
 
 %weight 8
 cache_of_fruit_0 DNGN_CACHE_OF_FRUIT

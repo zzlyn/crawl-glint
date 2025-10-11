@@ -5,7 +5,6 @@
 #include "beam.h"
 #include "coordit.h"
 #include "los-type.h"
-#include "reach-type.h"
 
 using std::vector;
 
@@ -127,7 +126,7 @@ private:
 class targeter_permafrost : public targeter_smite
 {
 public:
-    targeter_permafrost(const actor &act, int power);
+    targeter_permafrost(const actor &act);
     aff_type is_affected(coord_def loc) override;
 private:
     set<coord_def> targets;
@@ -204,8 +203,8 @@ public:
 class targeter_reach : public targeter
 {
 public:
-    targeter_reach(const actor* act, reach_type ran = REACH_NONE);
-    reach_type range;
+    targeter_reach(const actor* act, int ran = 1);
+    int range;
     bool valid_aim(coord_def a) override;
     aff_type is_affected(coord_def loc) override;
 };
@@ -231,6 +230,7 @@ public:
     bool valid_aim(coord_def a) override;
     bool can_affect_outside_range() override;
     aff_type is_affected(coord_def loc) override;
+    bool harmful_to_player() override;
     cloud_type ctype;
     int range;
     int cnt_min, cnt_max;
@@ -497,7 +497,7 @@ public:
 class targeter_bog : public targeter_multiposition
 {
 public:
-    targeter_bog(const actor *a, int pow);
+    targeter_bog(const actor *a);
 };
 
 class targeter_ignite_poison : public targeter_multiposition
@@ -742,4 +742,30 @@ public:
     targeter_malign_gateway(actor& caster);
     aff_type is_affected(coord_def loc) override;
     bool valid_aim(coord_def) override { return true; }
+};
+
+class targeter_watery_grave : public targeter_radius
+{
+public:
+    targeter_watery_grave();
+    aff_type is_affected(coord_def loc) override;
+};
+
+class targeter_bestial_takedown : public targeter_smite
+{
+public:
+    targeter_bestial_takedown();
+    bool valid_aim(coord_def a) override;
+    bool set_aim(coord_def a) override;
+    aff_type is_affected(coord_def loc) override;
+
+private:
+    vector<coord_def> landing_spots;
+};
+
+class targeter_paragon_deploy : public targeter_smite
+{
+public:
+    targeter_paragon_deploy(int range);
+    bool valid_aim(coord_def a) override;
 };

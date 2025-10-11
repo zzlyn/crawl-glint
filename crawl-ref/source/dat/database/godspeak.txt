@@ -172,7 +172,10 @@ Xom whisks you away into a realm of unfathomable savings!
 
 Xom casts you into... a shopping extravaganza?
 
-Xom offers you everything you could ever want (according to Xom).
+Xom offers you everything you could ever need (to amuse Xom).
+
+w:5
+Xom offers you everything you could ever need (in Xom's infallible divine judgment).
 
 The world spins wildly as Xom's jovial laughter rings.
 
@@ -492,13 +495,13 @@ Xom cloak slot
 
 @Your_item@ billows in an unfelt wind.
 
-@Your_item@ briefly wraps itself around your head!
+@Your_item@ briefly wraps itself around your @head@!
 
 @Your_item@ is briefly covered in lurid @any_colour_pattern@!
 %%%%
 Xom helmet slot
 
-@Your_item@ leaps into the air, briefly spins, then lands back on your head!
+@Your_item@ leaps into the air, briefly spins, then lands back on your @head@!
 %%%%
 Xom offhand slot
 
@@ -514,6 +517,14 @@ Xom boots slot
 
 @Your_item@ grows to a huge size, then shrinks back down!
 %%%%
+Xom amulet slot
+
+@Your_item@ pulsates!
+
+@Your_item@ flares @any_glowing_colour@, then returns to normal.
+
+@Your_item@ briefly flies off and hovers over your @head@!
+%%%%
 Xom gizmo slot
 
 @Your_item@ jiggles!
@@ -524,7 +535,9 @@ Xom ring slot
 
 @Your_item@ twitches!
 
-@Your_item@ briefly expands and covers your entire @hand@!
+@Your_item@ briefly dulls, then brightens again!
+
+@Your_item@ briefly brightens, then dulls again!
 %%%%
 Xom dragon armour
 
@@ -574,9 +587,14 @@ Xom's power touches on your mind for a moment.
 
 Xom titters.
 %%%%
-# 50% stat loss, 25% draining,
-# 25% torment (only the player if Xom's feeling nasty)
-Xom draining or torment
+Xom drinkless confusion
+
+"Stumble well, my pet!"
+
+Xom's power touches upon your body and mind for a moment.
+%%%%
+# Draining, player-only torment, or Doom.
+Xom suffering
 
 "You have displeased me, mortal."
 

@@ -1883,7 +1883,7 @@ staff of conjuration
 
 <staff>
 %%%%
-staff of death
+staff of necromancy
 
 “'I am Aed Abaid of Ess Rúaid, that is, the good god of wizardry of the Tuatha
  Dé Danann, and the Rúad Rofhessa, and Eochaid Ollathair are my three names.’
@@ -2400,21 +2400,6 @@ Prince Ribbit
  Open the door for me!”
     -Brothers Grimm (Margaret Hunt), _The Frog King, or Iron Henry_
 %%%%
-Psyche
-
-“Let Psyche's corpse be clad in mourning weed
- And set on rock of yonder hill aloft;
- Her husband is no wight of human seed,
- But serpent dire and fierce, as may be thought,
- Who flies with wings above in starry skies,
- And doth subdue each thing with fiery flight.
- The Gods themselves and powers that seem so wise
- With mighty love be subject to his might.
- The rivers black and deadly floods of pain
- And darkness eke as thrall to him remain.”
-    -Apuleius, _Asinus aureus_, “Cupid and Psyche”. circa. 160 AD.
-    trans. William Adlington, 1566.
-%%%%
 Sigmund
 
 “But Sigmund turned him about, and he said: ‘What aileth thee, son?
@@ -2521,7 +2506,6 @@ mad acolyte of Lugonu
 microbat
 
 <bat>
-
 %%%%
 phase bat
 
@@ -2722,6 +2706,22 @@ battlesphere
  But I am”
     -They Might Be Giants, “Birdhouse in Your Soul”. 1989.
 %%%%
+bes kemwar
+
+# would prefer a more prose-like passage translating Teoh's Bes Hyang Dney or
+# Werner's Jah-hět of Malaysia, Art and Culture, but until then:
+“The Bès Kěmwar, “maggot spirit”, is one of the many _bès_ or disease spirits
+ known to the Jah Hut of Malaysia. A polyvalent spirit, it is depicted as a
+ maggot or caterpillar, with variants distinguished by hair, thorns, wings, and
+ other details. It eats rice, vegetables, and other crops. It is responsible for
+ aches in bones, joints, and muscles. If its caterpillar hair falls into water
+ and that water is drunk, it causes coughing and bleeding in the throat. Maggot
+ spirits are also known to live in rotten tree trunks and feed in them. Anyone
+ who approaches the fallen tree will be bitten in the leg by the spirit, causing
+ redness, swelling, and itching. All the toenails fall off but the swelling will
+ be gone by two or three months.”
+    - _A Book of Creatures_, 2020.
+%%%%
 boggart
 
 “He thinks every bush a boggart.”
@@ -2801,6 +2801,23 @@ cherub
  the voice of God Almighty when he speaks.”
     -WEB Bible, Ezekiel 10:4-5
 %%%%
+chonchon
+
+# would prefer a more prose-like passage translating Aguirre's Mitos De Chile or
+# Coluccio's Diccionario Folklórico Argentino, but until then:
+“In its simplest form it is a bird of the night, an owl (_Strix rufipes_) that
+ flies on silent wings during the night to announce illness, death, or some
+ other unwelcome event. When its croaking is heard it is advised to throw ash
+ into the air and utter a few prayers in the hopes of turning away its evil.
+
+ The chonchón is also said to be a _calcu_ or evil sorcerer in disguise. It
+ resemble a human head, with oversized wing-like ears that allow it to fly.
+ During the night, these sorcerers’ heads detach themselves from their bodies
+ and fly around to cause mischief, invisible to most, their ominous _tué, tué,
+ tué_ call announcing misfortune. They have the same powers as sorcerers do,
+ and have been known to suck the blood of sleepers.”
+    - _A Book of Creatures_, 2015.
+%%%%
 crimson imp
 
 “The Devil, too, sometimes steals human children; it is not infrequent for him
@@ -2869,7 +2886,7 @@ diamond obelisk
     -“Expert Judgment on Markers to Deter Inadvertent Human Intrusion into the
       Waste Isolation Pilot Plant”, Sandia National Laboratories report. 1993
 %%%%
-doom hound
+oblivion hound
 
 “Standing over Hugo, and plucking at his throat, there stood a foul thing, a
  great, black beast, shaped like a hound, yet larger than any hound that ever
@@ -3291,6 +3308,10 @@ kraken
  nostrils and making ring waves around him, which can reach many miles. Could
  one doubt that this is the Leviathan of Job?”
     -Jacob Wallenberg, “Min son på galejan”. 1781.
+%%%%
+large abomination
+
+<small abomination>
 %%%%
 lindwurm
 

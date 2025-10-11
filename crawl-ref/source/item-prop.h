@@ -13,7 +13,6 @@
 #include "equipment-slot.h"
 #include "item-prop-enum.h"
 #include "potion-type.h"
-#include "reach-type.h"
 #include "size-type.h"
 #include "tag-version.h"
 
@@ -109,6 +108,7 @@ int armour_max_enchant(const item_def &item) PURE;
 bool armour_type_is_hide(armour_type type) PURE;
 bool armour_is_hide(const item_def &item) PURE;
 bool armour_is_special(const item_def &item) PURE;
+bool armour_is_aux(armour_type arm) PURE;
 int armour_acq_weight(const armour_type armour) PURE;
 
 equipment_slot get_armour_slot(const item_def &item) PURE;
@@ -139,8 +139,6 @@ bool is_shield_incompatible(const item_def &weapon,
                             const item_def *shield = nullptr) PURE;
 bool shield_reflects(const item_def &shield) PURE;
 int shield_block_limit(const item_def &shield) PURE;
-
-int guile_adjust_willpower(int wl) PURE;
 
 bool is_regen_item(const item_def& item);
 bool is_mana_regen_item(const item_def& item);
@@ -188,10 +186,10 @@ launch_retval is_launched(const actor *actor, const item_def &missile) PURE;
 
 bool ammo_always_destroyed(const item_def &missile) PURE;
 bool ammo_never_destroyed(const item_def &missile) PURE;
-int  ammo_type_destroy_chance(int missile_type) PURE;
+int  ammo_destroy_chance(const item_def &missile) PURE;
 int  ammo_type_damage(int missile_type) PURE;
 
-reach_type weapon_reach(const item_def &item) PURE;
+int weapon_reach(const item_def &item) PURE;
 
 // gem functions:
 int gem_time_limit(gem_type gem) PURE;
@@ -216,7 +214,7 @@ int evoker_max_charges(int evoker_type);
 void print_xp_evoker_recharge(const item_def &evoker, int gained, bool silenced);
 
 // ring functions:
-bool jewellery_type_has_plusses(int jewel_type) PURE;
+bool jewellery_type_has_pluses(int jewel_type) PURE;
 bool jewellery_has_pluses(const item_def &item) PURE;
 bool ring_has_stackable_effect(const item_def &item) PURE;
 
@@ -265,6 +263,8 @@ string item_base_name(object_class_type type, int sub_type);
 const char *weapon_base_name(weapon_type subtype) IMMUTABLE;
 weapon_type name_nospace_to_weapon(string name_nospace);
 string talisman_type_name(int sub_type);
+const vector<talisman_type> talismans_by_tier(int tier);
+int talisman_tier(talisman_type type);
 
 void initialise_item_sets(bool reset = false);
 void force_item_set_choice(item_set_type typ, int sub_type);
@@ -296,9 +296,10 @@ bool item_gives_equip_slots(const item_def& item);
 bool item_grants_flight(const item_def& item);
 
 bool is_equippable_item(const item_def& item);
-
-bool ring_plusses_matter(int ring_subtype);
+bool is_usable_talisman(const item_def& item);
 
 void remove_whitespace(string &str);
 
 void populate_fake_projectile(const item_def &wep, item_def &fake_proj);
+
+int jewellery_usefulness_limit(jewellery_type type);

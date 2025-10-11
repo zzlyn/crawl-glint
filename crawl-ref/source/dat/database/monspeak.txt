@@ -2184,8 +2184,59 @@ Boris triumphant
 @The_monster@ says, "I'd like to see you come back from this one."
 
 @The_monster@ says, "I'll treasure this one."
+%%%%
+Boris riddle
+
+@The_monster@ says, "You would ask such trivialities of one who has solved death itself?"
+%%%%
 ## END Boris ##
 %%%%
+############ CASSANDRA ############ An oracle powerless to change the future
+Cassandra
+
+@The_monster@ says, "A terrible fate awaits all who seek the ORB - and yours worst of all." @player_only@
+
+@The_monster@ beseeches you, "Abandon your quest, lest a terrible end find us all." @player_only@
+
+@The_monster@ shouts, "Turn back while you still can!"
+
+@The_monster@ says, "The road you walk has only one end and you would not wish it even upon your enemies."
+
+@The_monster@ cries, "You know not what is at stake here!"
+
+# The Mysterious Stranger
+@The_monster@ says, "You never know good fortune from ill. It is because you cannot see into the future."
+
+@The_monster@ says, "Heed my words or we all shall suffer their consequence."
+
+@The_monster@ says, "I have seen things no one ever should."
+
+@The_monster@ says, "Knowledge is its own curse."
+
+w:5
+@The_monster@ says, "Should we be naught but slaves of fate, I will still speak truth to my dying breath."
+%%%%
+Cassandra triumphant
+
+@The_monster@ gasps, "Did I... did I finally change the future?"
+%%%%
+Cassandra killed
+
+@The_monster@ gasps with @possessive@ dying breath, "I... tried to warn you..."
+
+@The_monster@ gasps with @possessive@ dying breath, "No one... ever listens..."
+
+@The_monster@ gasps with @possessive@ dying breath, "Your fate... be upon your own head..."
+%%%%
+friendly Cassandra
+
+@The_monster@ begs you to reconsider your quest.
+
+@The_monster@ pleads, "Will you not heed even the word of a friend and end this?"
+
+@The_monster@ says, "Even I cannot save you if you persist in this."
+%%%%%
+
 ############ CHUCK ### An avid rock collector.
 Chuck
 
@@ -2659,6 +2710,10 @@ aubergine
 
 sanguine
 
+twenty-three
+
+twenty-seven
+
 forty-two
 
 unthinkable
@@ -2678,7 +2733,6 @@ alas
 rumpyflump
 
 sizzlefizz
-
 %%%%
 ############ DISSOLUTION ### a sentient jelly who used to be human a long time ago
 Dissolution
@@ -3034,6 +3088,8 @@ w:50
 
 @The_monster@ says, "I hate skeletons."
 
+@The_monster@ says, "I hate draugr."
+
 @The_monster@ says, "I hate zombies."
 
 @The_monster@ says, "I hate vampires."
@@ -3071,6 +3127,8 @@ w:50
 @The_monster@ says, "All these vampires have me hopping mad!"
 
 @The_monster@ says, "I hate revenants, but I forget why! And I hate that, too!"
+
+@The_monster@ says, "I got a splinter from a draugr. I hate that."
 %%%%
 Abyss Donald
 
@@ -3092,6 +3150,8 @@ w:50
 @The_monster@ says, "I hate wrenching sensations."
 
 @The_monster@ says, "What's so abyssal about tentacles and stars?"
+
+@The_monster@ says, "Screaming refractions? What's next, yodelling boulders?"
 %%%%
 Zot Donald
 
@@ -3268,7 +3328,7 @@ _yredelemnul_Donald_
 
 @The_monster@ says, "I hate zombies."
 
-@The_monster@ says, "Zombies? Skeletons? Spectral things? Don't you get bored without any real company?"
+@The_monster@ says, "Zombies? Spectres? Don't you get bored without any real company?"
 
 @The_monster@ says, "Angels painted black are so last century."
 
@@ -3908,6 +3968,10 @@ Donald marionette
 
 @The_monster@ says, "Don't use me like a cheap sock puppet. I hate that."
 %%%%
+Donald riddle
+
+@The_monster@ says, "Everybody knows that one already. Try something more original."
+%%%%
 Donald killed
 
 w:100
@@ -4456,6 +4520,10 @@ Frederick triumphant
 @The_monster@ sighs, "Killing weak @player_genus_plural@ does nothing to prove my superiority."
 
 @The_monster@ sighs, "Another waste of time."
+%%%%
+Frederick riddle
+
+@The_monster@ sighs, "Your wits are somehow even duller than your claws."
 %%%%
 Ashenzari Frederick triumphant
 
@@ -5116,8 +5184,6 @@ confused Ijyb
 
 @The_monster@ screams @at_foe@, "Wand still stronger! You very nasty!"
 
-@The_monster@ wonders, "Where me metal friend go?"
-
 w:5
 @The_monster@ screams, "Science deserve better than this!"
 
@@ -5705,6 +5771,10 @@ _Mara_rare_
 @The_monster@ calls, "Stop! In seven days from now the wheel of empire will appear!"
 
 @The_monster@ boasts, "I am lord over the four continents and the two thousand adjacent isles."
+%%%%
+Mara riddle
+
+@The_monster@ smirks. "I shall give thine eyesight a greater riddle by far."
 %%%%
 ############ MARGERY ### A powerful sorceress, guarding the ORB
 Margery
@@ -6596,95 +6666,6 @@ baby bat
 blue-tailed skink
 ## END Prince Ribbit ##
 %%%%
-############ PSYCHE ### An insane sorceress
-Psyche
-
-@_Psyche_common_@
-
-w:7
-@_Psyche_medium_@
-
-w:3
-@_Psyche_rare_@
-%%%%
-_Psyche_common_
-
-@The_monster@ laughs secretively.
-%%%%
-_Psyche_medium_
-
-VISUAL:@The_monster@ glows with a rainbow of weird force.
-
-VISUAL:@The_monster@ toys with @possessive@ hair.
-
-@The_monster@ giggles crazily.
-
-VISUAL:@The_monster@ cries.
-
-VISUAL:@The_monster@ looks as if @subjective@ doubts whether @foe@ exists.
-
-VISUAL:@The_monster@ looks excited.
-
-VISUAL:@The_monster@ looks confused.
-
-@The_monster@ sings.
-
-@The_monster@ sings a strange song.
-
-@The_monster@ says @to_foe@, "Please, could you die a little faster?"
-
-@The_monster@ says @to_foe@, "I'm a bad girl, but I can't do anything about it."
-
-@The_monster@ says @to_foe@, "I'm so lonely. Only corpses are my friends."
-
-@The_monster@ says @to_foe@, "Once you're dead we can play together!"
-
-@The_monster@ says @to_foe@, "I'll kill you and take you home."
-
-@The_monster@ cries, "I hate blood and violence."
-
-@The_monster@ cries @to_foe@, "You've killed my pet!"
-
-@The_monster@ screams @at_foe@, "Die, monster!"
-
-@The_monster@ screams @at_foe@, "Give me the Holy Grail!"
-
-@The_monster@ screams @at_foe@, "You killed all those lovely monsters, you murderer!"
-
-@The_monster@ screams @at_foe@, "Hurray!"
-%%%%
-_Psyche_rare_
-
-VISUAL:@The_monster@ smiles happily.
-
-VISUAL:@The_monster@ stares at @foe@ for a moment.
-
-VISUAL:@The_monster@ bursts into tears.
-
-VISUAL:@The_monster@ sucks @possessive@ thumb.
-
-@The_monster@ asks @foe,@ "You're a monster, aren't you?"
-
-@The_monster@ says @to_foe@, "My Mum always said: 'Kill them all.'"
-
-@The_monster@ screams @at_foe@, "Get ready! I'll kill you! Or something like that..."
-
-@The_monster@ screams @at_foe@, "Red! No, blue!"
-
-@The_monster@ screams @at_foe@, "YOU ARE VIOLATING AREA SECURITY!!!"
-
-@The_monster@ screams @at_foe@, "Peace! Flowers! Freedom! Dead adventurers!"
-
-@The_monster@ shouts @at_foe@, "Well, maybe I'm a bit nutty, but who cares?!"
-
-@The_monster@ shouts @at_foe@, "I'm not crazy, you are!"
-
-@The_monster@ shouts @at_foe@, "I hope that you are sorry for that!"
-
-# Copyright U2?
-@The_monster@ whispers @to_foe@, "Hold me, thrill me, kiss me, kill me."
-## END Psyche ##
-%%%%
 ############ PARGI ### A teased troll
 Pargi
 
@@ -7124,6 +7105,59 @@ VISUAL:@The_monster@ applauds @reflexive@.
 @The_monster@ says, "Show's over."
 ## END Sonja ##
 %%%%
+############ SPROZZ ### A coglin tinkerer with big plans about bees
+Sprozz
+{{
+  if spells.memorised("launch clockwork bee") then
+    return '@_Sprozz_thief_@'
+  else
+    return '@_Sprozz_common_@'
+  end
+}} @player_only@
+%%%%
+_Sprozz_thief_
+
+@The_monster@ shouts, "Patent thief! You won\'t get away with this!"
+
+@The_monster@ yells, "I thought of it first! Give it back!"
+
+@The_monster@ grumbles, "I\'ll bet your bee is still using copper gearwork!"
+
+@The_monster@ shouts, "Who\'s been selling my blueprints? Tell me!"
+%%%%
+_Sprozz_common_
+
+@The_monster@ says, "Allow me to demonstrate the bee of the future!"
+
+@The_monster@ says, "It makes honey *and* kills pests. Ingenious!"
+
+@The_monster@ says, "Clockwork honey contains at least 35% more iron! Nutritious."
+
+@The_monster@ says, "Chitin is about to be a thing of the past!"
+
+@The_monster@ grins. "Soon, every apiary\'s gonna want a piece of Sprozz!"
+
+@The_monster@ says, "I need a test subject for my new stingers. I volunteer you."
+
+@The_monster@ says, "Tell me how much this hurts, okay? I need more data."
+
+@The_monster@ mumbles, "Perhaps it could use a bit more zinc in the wings...."
+
+@The_monster@ mutters, "Next time I\'m using spur gears. Less buzzing."
+
+@The_monster@ mumbles, "Pollen collection still 41% less efficient. Must improve."
+
+@The_monster@ mumbles, "Nectar collection still 37% less efficient. Must improve."
+%%%%
+Sprozz triumphant
+{{
+  if spells.memorised("launch clockwork bee") then
+    return '@The_monster@ shouts, "I *knew* mine was better!"'
+  else
+    return '@The_monster@ says, "Progress like this can\'t be stopped by anyone!"'
+  end
+}}
+%%%%
 ############ TERENCE ### A retired veteran who hates being disturbed
 Terence
 
@@ -7350,7 +7384,7 @@ _Wiglaf_common_
 
 @The_monster@ says @to_foe@, "I'll gie ye a proper bath in magma."
 
-@The_monster@ shouts @at@ @foe@, "By thae beards o' ma forefathars, ye wilnae live tae see tha morn'!"
+@The_monster@ shouts @at_foe@, "By thae beards o' ma forefathars, ye wilnae live tae see tha morn'!"
 
 @The_monster@ says, "I got whit I came for, but wha passes up a proper rammy?"
 
@@ -7476,6 +7510,10 @@ VISUAL:@The_monster@ belches a long, triumphant arc of flame.
 @The_monster@ growls, "COMING HERE WAS YOUR LAST MISTAKE."
 
 @The_monster@ rumbles, "TIME FOR A NIBBLE."
+%%%%
+Xtahua riddle
+
+@The_monster@ roars at you, "BIG WORDS FOR SUCH A SMALL MORSEL!"
 ## END Xtahua ##
 %%%%
 ############ ZENATA ### A cultist of constructs
@@ -7633,6 +7671,47 @@ VISUAL:@The_monster@ rams the @surface@ with @possessive@ head heavily.
 @The_monster@ breathes in.
 
 @The_monster@ snuffles in challenge.
+%%%%
+################## Cognitogaunt ############################
+# Any new lines shouldn't actually try to transcribe their speech.
+cognitogaunt
+
+VISUAL:@The_monster@ shines with the incandescence of long-dead nights.
+
+w:20
+@The_monster@ grumbles constantly over the stars not yet being right.
+
+@The_monster@ mumbles about the follies of mortal constellations.
+
+@The_monster@ mutters ill rumours of the current state of the heavens.
+
+@The_monster@ muses over how flesh is wasted on mortals.
+
+@The_monster@ marvels to itself over the thinness of mortal minds.
+
+@The_monster@ mocks the topics of the next astral concord.
+
+w:1
+@The_monster@ writhes with frustration over not yet finding solutions for supernovas.
+
+@The_monster@ growls that the stars belong to nobody but the stars.
+
+@The_monster@ gripes about being made of rot and starlight.
+
+# Douglas Adams
+@The_monster@ grouses that life is wasted on the living.
+%%%%
+silenced cognitogaunt
+
+VISUAL:@The_monster@ shines with the incandescence of long-dead nights.
+%%%%
+friendly cognitogaunt
+
+@cognitogaunt@
+%%%%
+confused cognitogaunt
+
+__NONE
 %%%%
 ################## Crystal guardian ###########################
 crystal guardian
@@ -7922,6 +8001,16 @@ friendly protean progenitor
 
 w:30
 __NONE
+%%%%
+################## Raven ###########################
+raven
+
+w:100
+__NONE
+
+w:2
+@The_monster@ caws, "Nevermore!"
+%%%%
 ################## Reaper ##################################
 # The reaper has come for you!
 reaper
@@ -8865,7 +8954,7 @@ mutations, and how to avoid them.
 
 potions of mutation - the devil's brew!
 
-neqoxecs and cacodemons - may they all be destroyed!
+neqoxecs and zykzyls - may they all be destroyed!
 
 # respecting intelligent beings
 a proper diet respecting intelligent beings.
@@ -9074,6 +9163,9 @@ w:5
 
 w:5
 @The_monster@ fumbles a card and drops it. "Whoops!"
+
+w:1
+@The_monster@ says, "I wanted to be a wyvern-rider, but @my_God@ had other plans!"
 %%%%
 # Cards not from any Nemelex deck
 _misplaced_card_
@@ -9128,7 +9220,7 @@ _deck_of_destruction_line_
 # Nemelex's deck of escape
 _deck_of_escape_line_
 
-@The_monster@ draws the Cloud. "Smoke, smoke everywhere!"
+@The_monster@ draws the Cloud. "No fresh air for enemies!"
 
 @The_monster@ draws the Elixir. "Healing and magic? Woohoo!"
 

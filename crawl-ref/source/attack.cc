@@ -434,11 +434,6 @@ void attack::init_attack(skill_type unarmed_skill, int attack_number)
             else
                 attk_type = AT_HIT;
         }
-        else if (attk_type == AT_TRUNK_SLAP && attacker->type == MONS_SKELETON)
-        {
-            // Elephant trunks have no bones inside.
-            attk_type = AT_NONE;
-        }
     }
     else
     {
@@ -455,7 +450,10 @@ void attack::alert_defender()
         && defender->is_monster()
         && attacker->is_monster()
         && attacker->alive() && defender->alive()
-        && (defender->as_monster()->foe == MHITNOT || one_chance_in(3)))
+        && (defender->as_monster()->foe == MHITNOT
+    // Necessary to keep monsters from sometimes being able to injured dazed enemies.
+            || defender->as_monster()->has_ench(ENCH_DAZED)
+            || one_chance_in(3)))
     {
         behaviour_event(defender->as_monster(), ME_WHACK, attacker);
     }
@@ -712,8 +710,13 @@ int attack::inflict_damage(int dam, beam_type flavour, bool clean)
         // gets the spectral.
         defender->props[REAPER_KEY].get_int() = attacker->mid;
     }
-    return defender->hurt(responsible, dam, flavour, kill_type,
-                          "", aux_source.c_str(), clean);
+    const int final = defender->hurt(responsible, dam, flavour, kill_type,
+                                     "", aux_source.c_str(), clean);
+
+    if (!defender->alive())
+        defender->props[ATTACK_KILL_KEY] = true;
+
+    return final;
 }
 
 /* If debug, return formatted damage done
@@ -1008,6 +1011,9 @@ int attack::calc_damage()
 int attack::test_hit(int to_land, int ev, bool randomise_ev)
 {
     int margin = AUTOMATIC_HIT;
+
+    if (defender->is_player() && you.duration[DUR_AUTODODGE])
+        return -1000;
 
     if (randomise_ev)
         ev = random2avg(2*ev, 2);
@@ -1390,6 +1396,11 @@ bool attack::apply_damage_brand(const char *what)
             did_god_conduct(DID_CHAOS, 2 + random2(3));
     }
 
+    // Since this adds the reaping brand to all attacks, check it after all
+    // other brands.
+    if (attacker->is_player() && you.unrand_equipped(UNRAND_SKULL_OF_ZONGULDROK))
+        did_god_conduct(DID_EVIL, 2 + random2(3));
+
     if (!obvious_effect)
         obvious_effect = !special_damage_message.empty();
 
@@ -1511,7 +1522,9 @@ void attack::player_stab_check()
 {
     // Stabbing monsters is unchivalric, and disabled under TSO!
     // (And also requires more finesse than just stumbling into a monster.)
-    if (you.confused() || have_passive(passive_t::no_stabbing))
+    // Water form also cannot stab from a distance.
+    if (you.confused() || have_passive(passive_t::no_stabbing)
+        || you.form == transformation::aqua && !adjacent(you.pos(), defender->pos()))
     {
         stab_attempt = false;
         stab_bonus = 0;

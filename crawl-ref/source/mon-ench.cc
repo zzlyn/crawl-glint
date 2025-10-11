@@ -172,9 +172,6 @@ bool monster::add_ench(const mon_enchant &ench)
     if (ench.ench == ENCH_FEAR && !can_feel_fear(true))
         return false;
 
-    if (ench.ench == ENCH_BLIND && !mons_can_be_blinded(type))
-        return false;
-
     // If we have never changed shape, mark us as shapeshifter, so that
     // "goblin perm_ench:shapeshifter" reverts on death.
     if (ench.ench == ENCH_SHAPESHIFTER)
@@ -234,8 +231,12 @@ void monster::add_enchantment_effect(const mon_enchant &ench, bool quiet)
         calc_speed();
         break;
 
-    case ENCH_DOUBLED_HEALTH:
+    case ENCH_DOUBLED_VIGOUR:
         scale_hp(2, 1);
+        break;
+
+    case ENCH_FIGMENT:
+        scale_hp(1, 3);
         break;
 
     case ENCH_FRENZIED:
@@ -329,10 +330,13 @@ void monster::add_enchantment_effect(const mon_enchant &ench, bool quiet)
         break;
 
     case ENCH_INVIS:
+        // Reveal a monster that goes invisible so that if it has just entered
+        // view but the screen hasn't redrawn with it in view, the player won't
+        // be confused by their auto explore stopping etc.
         if (testbits(flags, MF_WAS_IN_VIEW))
         {
-            went_unseen_this_turn = true;
-            unseen_pos = pos();
+            revealed_this_turn = true;
+            revealed_at_pos = pos();
         }
         break;
 
@@ -371,6 +375,11 @@ void monster::add_enchantment_effect(const mon_enchant &ench, bool quiet)
 
     case ENCH_TOUCH_OF_BEOGH:
         scale_hp(touch_of_beogh_hp_mult(*this), 100);
+        break;
+
+    case ENCH_PARADOX_TOUCHED:
+        spells.push_back({SPELL_MANIFOLD_ASSAULT, 50, MON_SPELL_NATURAL});
+        props[CUSTOM_SPELLS_KEY] = true;
         break;
 
     default:
@@ -420,7 +429,11 @@ void monster::remove_enchantment_effect(const mon_enchant &me, bool quiet)
         calc_speed();
         break;
 
-    case ENCH_DOUBLED_HEALTH:
+    case ENCH_FIGMENT:
+        scale_hp(3, 1);
+        break;
+
+    case ENCH_DOUBLED_VIGOUR:
         scale_hp(1, 2);
         if (!quiet)
             simple_monster_message(*this, " excess health fades away.", true);
@@ -509,6 +522,12 @@ void monster::remove_enchantment_effect(const mon_enchant &me, bool quiet)
 
         if (!quiet)
             simple_monster_message(*this, msg.c_str());
+
+        if (props.exists(FROZEN_IN_FEAR_KEY))
+        {
+            props.erase(FROZEN_IN_FEAR_KEY);
+            del_ench(ENCH_BOUND);
+        }
 
         // Reevaluate behaviour.
         behaviour_event(this, ME_EVAL);
@@ -803,11 +822,6 @@ void monster::remove_enchantment_effect(const mon_enchant &me, bool quiet)
            simple_monster_message(*this, " is no longer corroded.");
         break;
 
-    case ENCH_GOLD_LUST:
-        if (!quiet)
-           simple_monster_message(*this, " is no longer distracted by gold.");
-        break;
-
     case ENCH_DRAINED:
         if (!quiet)
             simple_monster_message(*this, " seems less drained.");
@@ -1008,6 +1022,29 @@ void monster::remove_enchantment_effect(const mon_enchant &me, bool quiet)
         spells.clear();
         spells.push_back({SPELL_PYRRHIC_RECOLLECTION, 0, MON_SPELL_NATURAL});
         spells.push_back({SPELL_BLINK_CLOSE, 15, MON_SPELL_WIZARD});
+        break;
+
+    case ENCH_PARADOX_TOUCHED:
+        if (!quiet)
+            simple_monster_message(*this, "is no longer touched by paradox.");
+        for (size_t i = 0; i < spells.size(); ++i)
+        {
+            if (spells[i].spell == SPELL_MANIFOLD_ASSAULT && spells[i].flags | MON_SPELL_NATURAL)
+            {
+                spells.erase(spells.begin() + i);
+                break;
+            }
+        }
+        break;
+
+    case ENCH_WARDING:
+        if (!quiet && you.can_see(*this))
+            mprf("The ward upon %s fades away.", name(DESC_THE).c_str());
+        break;
+
+    case ENCH_DIMINISHED_SPELLS:
+        if (!quiet)
+            simple_monster_message(*this, " spells are no longer diminished.");
         break;
 
     default:
@@ -1379,7 +1416,7 @@ void monster::apply_enchantment(const mon_enchant &me)
     case ENCH_LOWERED_WL:
     case ENCH_TIDE:
     case ENCH_REGENERATION:
-    case ENCH_DOUBLED_HEALTH:
+    case ENCH_DOUBLED_VIGOUR:
     case ENCH_STRONG_WILLED:
     case ENCH_IDEALISED:
     case ENCH_FLIGHT:
@@ -1401,7 +1438,6 @@ void monster::apply_enchantment(const mon_enchant &me)
     case ENCH_FROZEN:
     case ENCH_SAP_MAGIC:
     case ENCH_CORROSION:
-    case ENCH_GOLD_LUST:
     case ENCH_RESISTANCE:
     case ENCH_HEXED:
     case ENCH_EMPOWERED_SPELLS:
@@ -1428,6 +1464,12 @@ void monster::apply_enchantment(const mon_enchant &me)
     case ENCH_DEEP_SLEEP:
     case ENCH_DROWSY:
     case ENCH_PYRRHIC_RECOLLECTION:
+    case ENCH_SPELL_CHARGED:
+    case ENCH_PHALANX_BARRIER:
+    case ENCH_PARADOX_TOUCHED:
+    case ENCH_WARDING:
+    case ENCH_DIMINISHED_SPELLS:
+    case ENCH_ORB_COOLDOWN:
         decay_enchantment(en);
         break;
 
@@ -1462,7 +1504,7 @@ void monster::apply_enchantment(const mon_enchant &me)
 
     case ENCH_AQUATIC_LAND:
         // Aquatic monsters lose hit points every turn they spend on dry land.
-        ASSERT(mons_habitat(*this) == HT_WATER || mons_habitat(*this) == HT_LAVA);
+        ASSERT(!(mons_habitat(*this) & HT_DRY_LAND));
         if (monster_habitable_grid(this, pos()))
         {
             del_ench(ENCH_AQUATIC_LAND);
@@ -1702,7 +1744,7 @@ void monster::apply_enchantment(const mon_enchant &me)
         // If we've gotten silenced or somehow incapacitated since we started,
         // cancel the recitation
         if (is_silenced() || cannot_act() || has_ench(ENCH_BREATH_WEAPON)
-            || confused() || asleep() || has_ench(ENCH_FEAR))
+            || confused() || asleep() || has_ench(ENCH_FEAR) || has_ench(ENCH_DAZED))
         {
             del_ench(en, true, false);
             if (you.can_see(*this))
@@ -1717,6 +1759,29 @@ void monster::apply_enchantment(const mon_enchant &me)
             mons_word_of_recall(this, random_range(3, 7));
             add_ench(mon_enchant(ENCH_BREATH_WEAPON, 1, this,
                                  breath_timeout_turns * BASELINE_DELAY));
+        }
+        break;
+
+    case ENCH_CLOCKWORK_BEE_CAST:
+        if (is_silenced() || cannot_act() || has_ench(ENCH_BREATH_WEAPON)
+            || confused() || asleep() || has_ench(ENCH_FEAR) || has_ench(ENCH_DAZED))
+        {
+            del_ench(en, true, false);
+            if (you.can_see(*this))
+            {
+                mprf("%s stops winding %s clockwork bee.", name(DESC_ITS).c_str(),
+                     pronoun(PRONOUN_POSSESSIVE).c_str());
+            }
+            break;
+        }
+
+        if (decay_enchantment(en))
+            launch_clockwork_bee(*this);
+        else if (you.can_see(*this))
+        {
+            mprf("%s continues winding %s clockwork bee....",
+                    name(DESC_THE).c_str(),
+                    pronoun(PRONOUN_POSSESSIVE).c_str());
         }
         break;
 
@@ -1832,7 +1897,8 @@ void monster::apply_enchantment(const mon_enchant &me)
 
     case ENCH_CHANNEL_SEARING_RAY:
         // If we've gotten incapacitated since we started, cancel the spell
-        if (is_silenced() || cannot_act() || confused() || asleep() || has_ench(ENCH_FEAR))
+        if (is_silenced() || cannot_act() || confused() || asleep()
+            || has_ench(ENCH_FEAR) || has_ench(ENCH_DAZED))
         {
             del_ench(en, true, false);
             if (you.can_see(*this))
@@ -2127,7 +2193,7 @@ static const char *enchant_names[] =
     "grasping_roots_source",
 #endif
     "grasping_roots",
-    "iood_charged", "fire_vuln", "polar_vortex_cooldown", "merfolk_avatar_song",
+    "spell_charged", "fire_vuln", "polar_vortex_cooldown", "merfolk_avatar_song",
     "barbs",
 #if TAG_MAJOR_VERSION == 34
     "building_charge",
@@ -2141,7 +2207,7 @@ static const char *enchant_names[] =
 #if TAG_MAJOR_VERSION == 34
     "ephemeral_infusion",
 #endif
-    "black_mark",
+    "sign_of_ruin",
 #if TAG_MAJOR_VERSION == 34
     "grand_avatar",
 #endif
@@ -2150,7 +2216,11 @@ static const char *enchant_names[] =
     "shroud",
 #endif
     "phantom_mirror", "bribed", "permabribed",
-    "corrosion", "gold_lust", "drained", "repel_missiles",
+    "corrosion",
+#if TAG_MAJOR_VERSION == 34
+    "gold_lust",
+#endif
+    "drained", "repel_missiles",
 #if TAG_MAJOR_VERSION == 34
     "deflect missiles",
     "negative_vuln", "condensation_shield",
@@ -2184,10 +2254,12 @@ static const char *enchant_names[] =
     "rimeblight",
     "magnetised",
     "armed",
-    "misdirected", "changed appearance", "shadowless", "doubled_health",
+    "misdirected", "changed appearance", "shadowless", "doubled_vigour",
     "grapnel", "tempered", "hatching", "blinkitis", "chaos_laced", "vexed",
-    "deep sleep", "drowsy",
-    "vampire thrall", "pyrrhic recollection",
+    "deep_sleep", "drowsy",
+    "vampire_thrall", "pyrrhic_recollection", "clockwork_bee_cast",
+    "phalanx_barrier", "figment", "paradox-touched", "warding",
+    "diminished_spells", "orb_cooldown",
     "buggy", // NUM_ENCHANTMENTS
 };
 
@@ -2253,7 +2325,7 @@ void mon_enchant::merge_killer(kill_category k, mid_t m)
 void mon_enchant::cap_degree()
 {
     // Sickness & draining are not capped.
-    if (ench == ENCH_SICK || ench == ENCH_DRAINED)
+    if (ench == ENCH_SICK || ench == ENCH_DRAINED || ench == ENCH_DAZED)
         return;
 
     // Hard cap to simulate old enum behaviour, we should really throw this
@@ -2431,7 +2503,7 @@ int mon_enchant::calc_duration(const monster* mons,
     case ENCH_INNER_FLAME:
         return random_range(25, 35) * 10;
     case ENCH_BERSERK:
-    case ENCH_DOUBLED_HEALTH:
+    case ENCH_DOUBLED_VIGOUR:
         return (16 + random2avg(13, 2)) * 10;
     case ENCH_ROLLING:
         return random_range(10 * BASELINE_DELAY, 15 * BASELINE_DELAY);

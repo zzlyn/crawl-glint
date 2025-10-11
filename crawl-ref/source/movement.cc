@@ -31,6 +31,7 @@
 #include "items.h"
 #include "map-knowledge.h"
 #include "message.h"
+#include "mon-abil.h"
 #include "mon-act.h"
 #include "mon-behv.h"
 #include "mon-death.h"
@@ -73,8 +74,8 @@ static void _swap_places(monster* mons, const coord_def &loc)
         return;
     }
 
-    // Friendly foxfire dissipates instead of damaging the player.
-    if (mons->type == MONS_FOXFIRE)
+    // Friendly seekers dissipate instead of damaging the player.
+    if (mons_is_seeker(*mons))
     {
         simple_monster_message(*mons, " dissipates!", false,
                                MSGCH_MONSTER_DAMAGE, MDAM_DEAD);
@@ -263,8 +264,7 @@ bool apply_cloud_trail(const coord_def old_pos)
             auto cloud = static_cast<cloud_type>(
                 you.props[XOM_CLOUD_TRAIL_TYPE_KEY].get_int());
             ASSERT(cloud != CLOUD_NONE);
-            check_place_cloud(cloud, old_pos, random_range(3, 10), &you,
-                              0, -1);
+            place_cloud(cloud, old_pos, random_range(3, 10), &you, 0, -1);
             return true;
         }
     }
@@ -631,6 +631,21 @@ monster* get_rampage_target(coord_def move)
     return nullptr;
 }
 
+static bool _check_rampage(bool attacking, coord_def rampage_destination,
+                           coord_def rampage_target, const string& noun)
+{
+    if (attacking)
+    {
+        return check_moveto(rampage_destination, noun)
+               && wielded_weapon_check(you.weapon(), noun + " and attack");
+    }
+    // You won't always move over rampage_destination, sometimes an invisible
+    // monster will get in the way and stop you on it. But warning about this
+    // seems more annoying than useful --Wizard Ike
+    return check_move_over(rampage_destination, noun)
+           && check_moveto(rampage_target, noun);
+}
+
 /**
  * Rampages the player toward a hostile monster, if one exists in the direction
  * of the move input. Invalid things along the rampage path cancel the rampage.
@@ -673,6 +688,19 @@ static spret _rampage_forward(coord_def move)
     if (rampage_destination == you.pos())
         return spret::fail;
 
+    // Abort if the player answers no to
+    // * barbs damaging move prompt
+    // * breaking ice spells prompt
+    // * dangerous terrain/trap/cloud/exclusion prompt
+    // * weapon check prompts;
+    // messaging for this is handled by check_moveto().
+    if (!_check_rampage(attacking, rampage_destination, rampage_target, noun))
+    {
+        stop_running();
+        you.turn_is_over = false;
+        return spret::abort;
+    }
+
     // Do allow rampaging on top of Fedhas plants,
     const monster* mons = monster_at(rampage_destination);
     bool fedhas_move = false;
@@ -689,21 +717,6 @@ static spret _rampage_forward(coord_def move)
                  verb.c_str());
         }
         return spret::fail;
-    }
-
-    // Abort if the player answers no to
-    // * barbs damaging move prompt
-    // * breaking ice spells prompt
-    // * dangerous terrain/trap/cloud/exclusion prompt
-    // * weapon check prompts;
-    // messaging for this is handled by check_moveto().
-    if (attacking && !check_moveto(rampage_destination, noun)
-        || attacking && !wielded_weapon_check(you.weapon(), noun + " and attack")
-        || !attacking && !check_moveto(rampage_target, noun))
-    {
-        stop_running();
-        you.turn_is_over = false;
-        return spret::abort;
     }
 
     // We've passed the validity checks, go ahead and rampage.
@@ -761,6 +774,8 @@ static void _apply_move_time_taken()
     you.time_taken = div_rand_round(you.time_taken, 10);
     if (you.duration[DUR_NO_HOP])
         you.duration[DUR_NO_HOP] += you.time_taken;
+    if (you.duration[DUR_MESMERISM_COOLDOWN])
+        you.duration[DUR_MESMERISM_COOLDOWN] += you.time_taken;
 }
 
 // The "first square" of rampaging ordinarily has no time cost, and the "second
@@ -994,7 +1009,7 @@ void move_player_action(coord_def move)
         if (try_to_swap
             && targ_monst->type == MONS_CLOCKWORK_BEE_INACTIVE)
         {
-            if (clockwork_bee_recharge(*targ_monst))
+            if (clockwork_bee_recharge(you, *targ_monst))
                 you.turn_is_over = false;
 
             return;
@@ -1024,7 +1039,7 @@ void move_player_action(coord_def move)
         {
             // Don't allow the player to freely locate invisible monsters
             // with confirmation prompts.
-            if (!you.can_see(*targ_monst) && !you.is_motile())
+            if (!rampaged && !you.can_see(*targ_monst) && !you.is_motile())
             {
                 canned_msg(MSG_CANNOT_MOVE);
                 you.turn_is_over = false;
@@ -1054,6 +1069,13 @@ void move_player_action(coord_def move)
             you.berserk_penalty = 0;
             attacking = true;
         }
+    }
+    else if (rampaged && !you.is_motile())
+    {
+        // We rampaged onto something that has stopped us moving and we
+        // don't have a target to hit.
+        _finalize_cancelled_rampage_move();
+        return;
     }
     else if (you.form == transformation::fungus && moving && !you.confused())
     {
@@ -1141,6 +1163,13 @@ void move_player_action(coord_def move)
         // put a monster at the player's location.
         if (swap)
             targ_monst->apply_location_effects(targ);
+
+        if (swap && targ_monst->type == MONS_SOLAR_EMBER
+            && targ_monst->hit_points < targ_monst->max_hit_points)
+        {
+            targ_monst->heal(targ_monst->max_hit_points * 3 / 4);
+            mprf("You weave more energy into your solar ember.");
+        }
 
         if (you_are_delayed() && current_delay()->is_run())
             env.travel_trail.push_back(you.pos());

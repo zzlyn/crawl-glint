@@ -352,7 +352,7 @@ spret cast_healing(int pow, bool fail)
 
     if (!spd.isValid)
         return spret::abort;
-    if (cell_is_solid(spd.target))
+    if (cell_is_invalid_target(spd.target))
     {
         canned_msg(MSG_NOTHING_THERE);
         return spret::abort;
@@ -432,7 +432,7 @@ bool player_is_debuffable()
  */
 bool player_is_cancellable()
 {
-    return get_contamination_level() || player_is_debuffable();
+    return you.magic_contamination > 0 || player_is_debuffable();
 }
 
 /**
@@ -445,7 +445,7 @@ string describe_player_cancellation(bool debuffs_only)
     vector<string> effects;
 
     // Try to clarify it doesn't remove all contam?
-    if (!debuffs_only && get_contamination_level())
+    if (!debuffs_only && you.magic_contamination > 0)
         effects.push_back("as magically contaminated");
 
     vector<duration_type> buffs = _dispellable_player_buffs();
@@ -629,7 +629,7 @@ int detect_items(int pow)
     if (pow >= 0)
         map_radius = 7 + random2(7) + pow;
 
-    else if (you.has_mutation(MUT_STRONG_NOSE))
+    else if (you.has_mutation(MUT_TREASURE_SENSE))
         map_radius = get_los_radius();
     else
     {
@@ -639,7 +639,7 @@ int detect_items(int pow)
         if (have_passive(passive_t::detect_items))
         {
             map_radius = max(map_radius,
-                             min(you.piety / 20 - 1, get_los_radius()));
+                             min(you.piety() / 20 - 1, get_los_radius()));
 
             if (map_radius <= 0)
                 return 0;
@@ -1067,8 +1067,7 @@ void holy_word_monsters(coord_def where, int pow, holy_word_source_type source,
     if (attacker != nullptr && attacker != mons)
         behaviour_event(mons, ME_ANNOY, attacker);
 
-    mons->add_ench(mon_enchant(ENCH_DAZED, 0, attacker,
-                               (10 + random2(10)) * BASELINE_DELAY));
+    mons->daze(random_range(4, 7));
 }
 
 void holy_word(int pow, holy_word_source_type source, const coord_def& where,
@@ -1101,8 +1100,13 @@ int torment_player(const actor *attacker, torment_source_type taux)
         // Negative energy resistance can alleviate torment.
         hploss = max(0, you.hp * (50 - player_prot_life() * 5) / 100 - 1);
         // Statue form is only partial petrification.
-        if (you.form == transformation::statue)
+        // Vampire form is only partially undead.
+        if (you.form == transformation::statue
+            || you.form == transformation::vampire
+            || you.form == transformation::bat_swarm)
+        {
             hploss /= 2;
+        }
         if (you.has_mutation(MUT_TORMENT_RESISTANCE))
             hploss /= 2;
 #if TAG_MAJOR_VERSION == 34
@@ -1117,16 +1121,17 @@ int torment_player(const actor *attacker, torment_source_type taux)
 
     if (kiku_shielding_player)
     {
+        int kiku_piety = min(piety_breakpoint(5), (int)you.piety());
         if (hploss > 0)
         {
-            if (random2(600) < you.piety) // 13.33% to 33.33% chance
+            if (random2(480) < kiku_piety) // 20.83% to 33.33% chance
             {
                 hploss = 0;
                 simple_god_message(" shields you from torment!");
             }
             // Always give at least partial protection for invoked torment.
-            // 24% to 80% chance for other sources.
-            else if (random2(250) < you.piety || taux == TORMENT_KIKUBAAQUDGHA)
+            // 50% to 80% chance for other sources.
+            else if (random2(200) < kiku_piety || taux == TORMENT_KIKUBAAQUDGHA)
             {
                 hploss -= (1 + random2(hploss - 1));
                 simple_god_message(" partially shields you from torment!");

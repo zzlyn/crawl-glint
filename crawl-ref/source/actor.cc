@@ -104,7 +104,8 @@ int actor::skill_rdiv(skill_type sk, int mult, int div) const
 
 int actor::wearing_jewellery(int sub_type) const
 {
-    return wearing(OBJ_JEWELLERY, sub_type, ring_plusses_matter(sub_type),
+    return wearing(OBJ_JEWELLERY, sub_type,
+                   jewellery_type_has_pluses(sub_type),
                    sub_type == AMU_REGENERATION || sub_type == AMU_MANA_REGENERATION);
 }
 
@@ -115,8 +116,8 @@ int actor::check_willpower(const actor* source, int power) const
     if (wl == WILL_INVULN)
         return 100;
 
-    if (source && source->wearing_ego(OBJ_ARMOUR, SPARM_GUILE))
-        wl = guile_adjust_willpower(wl);
+    if (source)
+        wl = apply_willpower_bypass(*source, wl);
 
     // Marionettes get better hex success against friends to avoid hex casts
     // often being wasted with normal monster spellpower.
@@ -346,8 +347,7 @@ int actor::spirit_shield(bool items) const
 bool actor::rampaging() const
 {
     return wearing_ego(OBJ_ARMOUR, SPARM_RAMPAGING)
-           || scan_artefacts(ARTP_RAMPAGING)
-           || you.duration[DUR_EXECUTION];
+           || scan_artefacts(ARTP_RAMPAGING);
 }
 
 int actor::apply_ac(int damage, int max_damage, ac_type ac_rule, bool for_real) const
@@ -1070,12 +1070,8 @@ bool actor::knockback(const actor &cause, int dist, int dmg, string source_name)
         ray.advance();
 
         newpos = ray.pos();
-        if (newpos == oldray.pos()
-            || !in_bounds(newpos)
-            || cell_is_solid(newpos)
-            || actor_at(newpos)
-            || !can_pass_through(newpos)
-            || !is_habitable(newpos))
+        if (newpos == oldray.pos() || actor_at(newpos)
+            || !in_bounds(newpos) || !is_habitable(newpos))
         {
             ray = oldray;
             break;
@@ -1128,14 +1124,8 @@ coord_def actor::stumble_pos(coord_def targ) const
     if (!adjacent(newpos, oldpos)) // !?
         return coord_def();
 
-    // copied from actor::knockback, ew
-    if (!in_bounds(newpos)
-        || cell_is_solid(newpos)
-        || !can_pass_through(newpos)
-        || !is_habitable(newpos))
-    {
+    if (!in_bounds(newpos) || !is_habitable(newpos))
         return coord_def();
-    }
 
     const actor* other = actor_at(newpos);
     if (other && can_see(*other))

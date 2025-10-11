@@ -7,7 +7,7 @@ enum ability_type
     ABIL_NON_ABILITY = -1,
     // Innate abilities and (Demonspawn) mutations.
     ABIL_SPIT_POISON = 1,
-    ABIL_BREATHE_FIRE,
+    ABIL_GOLDEN_BREATH,
     ABIL_GLACIAL_BREATH,
     ABIL_BREATHE_POISON,
     ABIL_GALVANIC_BREATH,
@@ -59,7 +59,9 @@ enum ability_type
     // Death Form
     ABIL_SIPHON_ESSENCE,
     // Talismans
+#if TAG_MAJOR_VERSION == 34
     ABIL_BEGIN_UNTRANSFORM,
+#endif
     ABIL_MUD_BREATH,
     // Coglins
     ABIL_INVENT_GIZMO,
@@ -333,8 +335,10 @@ enum ability_type
     // Wu Jian
     ABIL_WU_JIAN_SERPENTS_LASH = 1280,
     ABIL_WU_JIAN_HEAVENLY_STORM,
+#if TAG_MAJOR_VERSION == 34
     ABIL_WU_JIAN_LUNGE,
     ABIL_WU_JIAN_WHIRLWIND,
+#endif
     ABIL_WU_JIAN_WALLJUMP,
 
     // Ignis
@@ -359,6 +363,11 @@ enum ability_type
     // General divine (pseudo) abilities.
     ABIL_RENOUNCE_RELIGION,
     ABIL_CONVERT_TO_BEOGH,
+
+    ABIL_SPIDER_JUMP,
+    ABIL_WATERY_GRAVE,
+    ABIL_BESTIAL_TAKEDOWN,
+    ABIL_BREATHE_RUST,
 
 #ifdef WIZARD
     ABIL_WIZ_BUILD_TERRAIN = 10000,

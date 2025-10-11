@@ -804,7 +804,7 @@ static void _PLUTONIUM_SWORD_melee_effects(item_def* weapon,
 
         if (one_chance_in(10))
         {
-            defender->polymorph(0); // Low duration if applied to the player.
+            defender->polymorph(random_range(7, 14)); // Low duration if applied to the player.
             return;
         }
 
@@ -815,7 +815,7 @@ static void _PLUTONIUM_SWORD_melee_effects(item_def* weapon,
             mpr(random_choose("Your body deforms painfully.",
                               "Your limbs ache and wobble like jelly.",
                               "Your body is flooded with magical radiation."));
-            contaminate_player(random_range(3500, 6500));
+            contaminate_player(random_range(700, 1350));
         }
         defender->hurt(attacker, random_range(5, 25));
     }
@@ -1312,12 +1312,8 @@ static void _FROSTBITE_melee_effects(item_def* /*weapon*/, actor* attacker,
                                      int /*dam*/)
 {
     coord_def spot = defender->pos();
-    if (!cell_is_solid(spot)
-        && !cloud_at(spot)
-        && one_chance_in(5))
-    {
-         place_cloud(CLOUD_COLD, spot, random_range(4, 8), attacker, 0);
-    }
+    if (one_chance_in(5))
+        place_cloud(CLOUD_COLD, spot, random_range(4, 8), attacker, 0);
 }
 
 ///////////////////////////////////////////////////
@@ -1423,7 +1419,7 @@ static void _BATTLE_world_reacts(item_def */*item*/)
 {
     if (!find_battlesphere(&you)
         && there_are_monsters_nearby(true, true, false)
-        && stop_summoning_reason(MR_RES_POISON, M_FLIES).empty())
+        && you_can_see_habitable_spot_near(HT_FLYER, 2))
     {
         const int pow = div_rand_round(15 + you.skill(SK_CONJURATIONS, 15), 3);
         cast_battlesphere(&you, pow, false);
@@ -1605,7 +1601,6 @@ static void _RCLOUDS_world_reacts(item_def */*item*/)
     {
         monster* m = monster_at(*ri);
         if (m && !m->wont_attack() && mons_is_threatening(*m)
-            && !cell_is_solid(*ri) && !cloud_at(*ri)
             && x_chance_in_y(you.time_taken, 7 * BASELINE_DELAY))
         {
             mprf("Storm clouds gather above %s.", m->name(DESC_THE).c_str());
@@ -1655,7 +1650,7 @@ static void _AUTUMN_KATANA_melee_effects(item_def* /*weapon*/, actor* attacker,
     // HACK: yes this is in a header but it's only included once
     static bool _slicing = false;
 
-    if (!one_chance_in(5) || _slicing || !defender)
+    if (!one_chance_in(8) || _slicing || !defender)
         return;
 
     unwind_bool nonrecursive_space(_slicing, true);
@@ -1669,7 +1664,7 @@ static void _AUTUMN_KATANA_melee_effects(item_def* /*weapon*/, actor* attacker,
          attacker->name(DESC_THE).c_str(),
          attacker->is_player() ? "" : "s");
 
-    // Casting with 100 power = up to 4 targets hit
+    // Casting with 100 power = up to 8 targets hit
     cast_manifold_assault(*attacker, 100, false, true, defender);
 }
 
@@ -1730,6 +1725,7 @@ static void _VICTORY_death_effects(item_def *item, monster* mons,
             item->plus = bonus_stats;
             artefact_set_property(*item, ARTP_SLAYING, bonus_stats);
             artefact_set_property(*item, ARTP_INTELLIGENCE, bonus_stats);
+            you.equipment.update();
             mprf(MSGCH_GOD, GOD_OKAWARU, "%s glows%s.",
                  item->name(DESC_THE, false, true, false).c_str(),
                  bonus_stats == VICTORY_STAT_CAP ? " brightly" : "");
@@ -1787,7 +1783,7 @@ static void _ASMODEUS_melee_effects(item_def* /*weapon*/, actor* attacker,
 
 ////////////////////////////////////////////////////
 
-static void _DOOM_KNIGHT_melee_effects(item_def* /*item*/, actor* attacker,
+static void _DREAD_KNIGHT_melee_effects(item_def* /*item*/, actor* attacker,
                                         actor* defender, bool mondied, int /*dam*/)
 {
     if (!mondied)
@@ -1875,7 +1871,7 @@ static void _FISTICLOAK_world_reacts(item_def */*item*/)
     vector<monster*> targs;
     for (adjacent_iterator ai(you.pos()); ai; ++ai)
         if (monster* mon = monster_at(*ai))
-            if (you.can_see(*mon) && !mon->wont_attack() && !mon->is_firewood())
+            if (you.can_see(*mon) && mon->temp_attitude() == ATT_HOSTILE && !mon->is_firewood())
                 targs.push_back(mon);
 
     if (targs.empty())
